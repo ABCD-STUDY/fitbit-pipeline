@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Send the survey's out to participants and parents that have used fitbit devices for 22 days
+# Send the survey's out to participants and parents that have used fitbit devices for 22 days (day 23)
 #
 
 import pycurl, cStringIO, json, sys, re, time
@@ -90,42 +90,19 @@ for d in va:
         date1 = datetime.datetime.strptime(d['fitc_device_dte'], '%Y-%m-%d %H:%M')
         date2 = datetime.datetime.now()
         delta = (date2 - date1).days
-        if (delta == 23) and (d['fitc_noti_generated_survey'] != ""):
-            # only add this participant if we have reached day 23
+        #print("pGUID: ", d['id_redcap'], " delta: ", delta, " \"", d['fitc_device_dte'], "\" ", d['redcap_event_name'])
+        if (delta == 23) and (d['fitc_noti_generated_survey'] == ""):
+            # only add this participant if we have reached day 23 and there is no survey notification yet
             participants.append([d['id_redcap'], d['fitc_device_dte'], delta, d['fitc_noti_generated_survey'], d['redcap_event_name']])
 
 print(json.dumps(participants))
 
 for d in participants:
     #
-    # store the survey send date in REDCap
+    # create the survey
     #
-    date1 = datetime.datetime.now()
-    buf = cStringIO.StringIO()
-    data = {
-        'token': tokens[site],
-        'content': 'record',
-        'format': 'json',
-        'type': 'flat',
-        'overwriteBehavior': 'overwrite',
-        'data': json.dumps([{ 'id_redcap': pGUID, 'redcap_event_name': redcap_event_name, 'fitc_noti_generated_survey': date1.strftime("%m-%d-%Y %H:%M:%S") }]),
-        'returnContent': 'count',
-        'returnFormat': 'json'
-    }
-    print("submit a survey date to REDCap:")
-    print(json.dumps(data))
-    if force == "-f":
-        ch = pycurl.Curl()
-        ch.setopt(ch.URL, 'https://abcd-rc.ucsd.edu/redcap/api/')
-        ch.setopt(ch.HTTPPOST, data.items())
-        ch.setopt(ch.WRITEFUNCTION, buf.write)
-        ch.perform()
-        ch.close()
-        print buf.getvalue()
-    buf.close()
-    #
-    # store done
-    #
+    pGUID = d[0]
+    event = d[4]
         
     next_noti_id = 0
     # what is the next redcap_repeat_instance that is not yet used up?
@@ -171,7 +148,7 @@ for d in participants:
         'content': 'surveyLink',
         'format': 'json',
         'instrument': 'fitbit_postassessment_youth',
-        'event': '2_year_follow_up_y_arm_1',
+        'event': event,
         'record': pGUID,
         'returnFormat': 'json'
     }
@@ -191,7 +168,7 @@ for d in participants:
         'content': 'surveyLink',
         'format': 'json',
         'instrument': 'fitbit_postassessment_parent',
-        'event': '2_year_follow_up_y_arm_1',
+        'event': event,
         'record': pGUID,
         'returnFormat': 'json'
     }
@@ -205,17 +182,16 @@ for d in participants:
     psurvey = buf.getvalue()
     buf.close()
     
-    
-    noti_youth     = "Thank you for participating. Can you please answer some questions and send us your Fitbit back? Click here for the survey: %s" % ysurvey
-    noti_parent_en = "Thank you for participating. Can you please answer some questions and send us your Fitbit back? Click here for the survey: %s" % psurvey
-    noti_parent_es = "Thank you for participating. Can you please answer some questions and send us your Fitbit back? Click here for the survey: %s" % psurvey
+    noti_youth     = "You have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire: %s" % ysurvey
+    noti_parent_en = "You have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire. Parent: %s, Youth: %s" % (psurvey, ysurvey)
+    noti_parent_es = "You have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire. Parent: %s, Youth: %s" % (psurvey, ysurvey)
     notifications = []
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit sync reminder',
+        'noti_subject_line': 'ABCD Fitbit survey reminder',
         'noti_text': noti_youth,
         'noti_spanish_language': 0,
-        'noti_purpose': 'send_sync_reminder',
+        'noti_purpose': 'send_survey_reminder',
         'noti_status': 1,
         'noti_timestamp_create': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'noti_site_name': site,
@@ -226,11 +202,11 @@ for d in participants:
     })
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit sync reminder',
+        'noti_subject_line': 'ABCD Fitbit survey reminder',
         'noti_text': noti_parent_en,
         'noti_spanish_language': 0,
         'noti_status': 1,
-        'noti_purpose': 'send_sync_reminder',
+        'noti_purpose': 'send_survey_reminder',
         'noti_timestamp_create': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'noti_site_name': site,
         'noti_recipient': 1,
@@ -240,11 +216,11 @@ for d in participants:
     })
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit sync reminder',
+        'noti_subject_line': 'ABCD Fitbit survey reminder',
         'noti_text': noti_parent_es,
         'noti_spanish_language': 1,
         'noti_status': 1,
-        'noti_purpose': 'send_sync_reminder',
+        'noti_purpose': 'send_survey_reminder',
         'noti_timestamp_create': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'noti_site_name': site,
         'noti_recipient': 1,
@@ -285,7 +261,7 @@ for d in participants:
         'format': 'json',
         'type': 'flat',
         'overwriteBehavior': 'overwrite',
-        'data': json.dumps([{ 'id_redcap': pGUID, 'redcap_event_name': redcap_event_name, 'fitc_noti_generated_sync': datetime.datetime.now().strftime("%m-%d-%Y %H:%M:%S") }]),
+        'data': json.dumps([{ 'id_redcap': pGUID, 'redcap_event_name': event, 'fitc_noti_generated_survey': datetime.datetime.now().strftime("%m-%d-%Y %H:%M:%S") }]),
         'returnContent': 'count',
         'returnFormat': 'json'
         #'record_id': hashlib.sha1().hexdigest()[:16]
