@@ -1,0 +1,8 @@
+*.json
+#*
+*#
+env/*
+*.pyc
+*.swp
+*.log
+scratch_*
