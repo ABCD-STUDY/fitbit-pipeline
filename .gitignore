@@ -6,3 +6,5 @@ env/*
 *.swp
 *.log
 scratch_*
+backup/*
+data/*
