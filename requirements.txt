@@ -1,0 +1,6 @@
+pandas>0.20
+pycap
+pycurl
+requests
+pytest
+great_expectations
