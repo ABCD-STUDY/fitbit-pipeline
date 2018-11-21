@@ -1,5 +1,24 @@
+#!/usr/bin/env python
 """
 When appropriate, send out low-battery alerts to any participants at site(s).
+
+It can be run with multiple sites, e.g.:
+
+    ./alert_low_battery.py -fv UCSD CHLA UPMC UMICH
+
+will trawl and notify any people from these sites (conditional on not creating 
+a pile-on on the subject - see below).
+
+For more details, run `./alert_low_battery.py -h`.
+
+WARNING: The script will _not_ run in the shared abcd-report environment. To 
+run it, you need to either:
+
+    - `cd /var/www/html/applications/fitbit/ && source env/bin/activate` in 
+      your shell prior to invoking it with `./alert_low_battery.py`, or
+    - directly invoke the virtualenv Python to execute the script, e.g.:
+
+    /var/www/html/applications/fitbit/env/bin/python alert_low_battery.py -f UCSD
 
 Steps:
 1. Get device list from Fitabase.
@@ -48,6 +67,7 @@ if __name__ == "__main__":
     with open('fitabase_tokens.json') as data_file:
         fitabase_tokens = json.load(data_file).get('tokens')
         fitabase_tokens = pd.DataFrame.from_records(fitabase_tokens, index='name')
+        # TODO: Could pass the list of keys as site choices for parse_arguments
     with open('../../code/php/tokens.json') as data_file:
         redcap_tokens = json.load(data_file)
         redcap_tokens = pd.DataFrame.from_dict(redcap_tokens, orient='index', columns=['token'])
