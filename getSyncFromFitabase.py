@@ -137,6 +137,22 @@ for d in v:
         # no sync date yet
         print("No sync date yet for: ",pGUID)
     else:
+        # New data will contain additionally to the SyncDate for each device a BatteryLevel indicator
+        #{
+        #    "SyncDate": "2018-11-15T21:42:48",
+        #    "LatestBatteryLevel": "High",
+        #    "LatestDeviceName": "Versa",
+        #    "Devices": [{
+        #        "DeviceName": "Versa",
+        #        "BatteryLevel": "High",
+        #        "LastSync": "2018-11-15T21:42:48"
+        #    }, {
+        #        "DeviceName": "Alta HR",
+        #        "BatteryLevel": "High",
+        #        "LastSync": "2018-11-15T14:49:55"
+        #    }]
+        #}
+        
         lastSyncDate = out['SyncDate']
         date1 = datetime.datetime.strptime(lastSyncDate, '%Y-%m-%dT%H:%M:%S')
         date2 = datetime.datetime.now()
