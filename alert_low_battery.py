@@ -35,14 +35,20 @@ import datetime
 import json
 import logging as log
 from notification import NotificationSubmission
+import os
 import pandas as pd
 import redcap as rc
 import requests
 from fitabase_api import FitabaseSite
 
 pd.options.mode.chained_assignment = None
-log.basicConfig(filename="logs/" + __file__ + ".log", 
-        format="%(asctime)s  %(levelname)s  %(message)s")
+log.basicConfig(
+        filename=os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "logs", os.path.basename(__file__) + ".log"), 
+        format="%(asctime)s  %(levelname)10s  %(message)s",
+        level=log.INFO)
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -62,7 +68,7 @@ if __name__ == "__main__":
     REDCAP_EVENT = '2_year_follow_up_y_arm_1'  # FIXME: Move to args?
     args = parse_arguments()
     if args.verbose:
-        log.basicConfig(level=log.INFO)
+        log.basicConfig(level=log.DEBUG)
 
     with open('fitabase_tokens.json') as data_file:
         fitabase_tokens = json.load(data_file).get('tokens')
@@ -75,7 +81,11 @@ if __name__ == "__main__":
     # No need to keep the call one site at a time - we can iterate through all
     for site in args.site:
         # Get device list from Fitabase
-        fit_token = fitabase_tokens.loc[site, 'token']
+        try:
+            fit_token = fitabase_tokens.loc[site, 'token']
+        except KeyError:
+            log.error('%s: Fitabase token ID is not available!', site)
+            continue
         fit_api = FitabaseSite(fit_token)
         fit_devices = fit_api.get_device_ids()
         fit_ids = fit_devices['Name']#.tolist()
@@ -103,6 +113,9 @@ if __name__ == "__main__":
                 < pd.Timedelta(days=23))
         active_devices = (rc_devices.loc[rc_devices.index.isin(fit_ids) & 
                                          rc_devices['now_collecting']])
+        if active_devices.empty:
+            log.warn("%s: No active devices at site.", site)
+            continue
         active_devices = active_devices.join(fit_devices.set_index('Name'))
         active_devices = active_devices.join(
                 fit_api.get_all_tracker_sync_data(active_devices))
@@ -203,18 +216,18 @@ if __name__ == "__main__":
             # will be attempted, but it will fail (as NotificationSubmission 
             # takes a dry_run argument that triggers its stopping logic).
             if not args.force:
-                log.warning("%s: To try to upload battery warning notification,"
-                            " run with --force" % pGUID)
+                log.warning("%s, %s: To try to upload battery warning notification,"
+                            " run with --force", site, pGUID)
             else:
                 try:
                     submission.upload(create_redcap_repeating=True)
-                    log.info("%s: Battery warning notifications (%d versions) " 
-                             "uploaded." % (pGUID, len(notifications)))
+                    log.info("%s, %s: Battery warning notifications (%d versions) " 
+                             "uploaded.", site, pGUID, len(notifications))
                 except ValueError as e:
-                    log.warning("%s: Abort condition triggered. "
-                                "Dry run: %s, "
-                                "too early after any alert: %s, "
-                                "too early after battery alert: %s. "
+                    log.warning("%s, %s: Abort condition triggered. Why? "
+                                "Dry run: %s; "
+                                "Too early after battery alert: %s. "
+                                "Too early after any alert: %s; "
                                 "(ValueError: %s)." % (
-                                    pGUID, args.dry_run, any_alerts, 
-                                    battery_alerts, e))
+                                    site, pGUID, args.dry_run, battery_alerts, 
+                                    any_alerts, e))
