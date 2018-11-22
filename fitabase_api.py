@@ -1,6 +1,3 @@
-"""
-FitabaseSite exposes the API actions for a specific Fitabase profile.
-"""
 import cStringIO
 import dateutil
 import json
@@ -15,6 +12,13 @@ except ImportError:
 from zipfile import ZipFile
 
 class FitabaseSite(object):
+    """
+    FitabaseSite exposes the API actions for a specific Fitabase profile.
+    """
+    # FIXME: Need to read up on resource freeing with StringIO + ZipFile etc., 
+    # and figure out how that works with resources that are returned to an 
+    # external scope.
+
     def __init__(self, token, url='https://api.fitabase.com/v1/'):
         """
         Initialize the object with info underlying all API calls.
@@ -124,6 +128,8 @@ class FitabaseSite(object):
         """
         Given a valid batch ID, get the raw stream of the zip file containing the batched export
         """
+        # TODO: Instead of get_batch_export_zipfile, it might make sense to 
+        # have a format parameter here?
         assert isinstance(batch_id, basestring)
         batch_stream = self._make_request(
                 'BatchExport/Download/%s' % batch_id,
@@ -156,19 +162,30 @@ class FitabaseSite(object):
             return batch_id
 
 
-    def export_batch_to_directory(self, batch_id=None, path=None):
+    def get_batch_export_zipfile(self, batch_id=None):
         """
-        Extract the result of self.export_batch to a chosen path
-
-        (Note that the script doesn't check that the path exists, or that you
-        have write permissions to it.)
+        Return the result of self.export_batch as a ZipFile object.
         """
+        if not batch_id:
+            batch_id = self.get_last_batch_export_id()
         batch_stream = self.export_batch(batch_id=batch_id)
         if not batch_stream:
             raise IOError('FitabaseSite.export_batch did not return a zip stream')
             return None
-        with ZipFile(batch_stream) as batch_zip:
-            batch_zip.extractall(path=path)
+        return ZipFile(batch_stream)
+
+
+    def export_batch_to_directory(self, batch_id=None, path=None):
+        """
+        Extract the result of self.export_batch to a chosen path
+
+        DEPRECATED: Should be handled outside of the API object.
+
+        (Note that the script doesn't check that the path exists, or that you
+        have write permissions to it.)
+        """
+        batch_zip = self.get_batch_export_zipfile(batch_id)
+        batch_zip.extractall(path=path)
 
 
     def _make_request(self, api_path, method="get", format="json", **header_data):
