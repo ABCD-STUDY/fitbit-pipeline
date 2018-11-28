@@ -44,6 +44,12 @@ def parse_arguments():
             help="Extract all files as-is (rather than creating a "
                  "subdirectory for each subject's files)")
 
+    parser.add_argument('--batch-name', default=None,
+            help='Verify that the correct batch is being downloaded. '
+                 '(For example, nightly exports should always be named '
+                 '"nightly_past14d".) If the name is different, the batch '
+                 'export will not be downloaded and processing will move on '
+                 'to the next site.')
     parser.add_argument('--no-download', '-n', action='store_true',
             help="Check but do not download.")
     parser.add_argument('--no-extract', '-x', action='store_true',
@@ -103,6 +109,12 @@ if __name__ == "__main__":
             continue
         fit_api = FitabaseSite(fit_token)
         last_batch = fit_api.get_last_batch_export_info()
+
+        if args.batch_name and last_batch.get('Name') != args.batch_name:
+            log.error('%s: Last available batch export is named %s, but '
+                      'parameters specify that its name must be %s; skipping.',
+                      site, last_batch.get('Name'), args.batch_name)
+
         try:
             last_id = last_batch.get('DownloadDataBatchId')
         except (AttributeError, IOError) as e:
