@@ -133,6 +133,9 @@ if __name__ == "__main__":
         # this for it
         join.loc[:, 'fitc_fitabase_exists'] = pd.notnull(join['fitc_fitabase_profile_id']).astype(int)
 
+        # For Redcap upload to work, redcap_event_name must be in the index
+        join = join.reset_index().set_index(['id_redcap', 'redcap_event_name'])
+
         # The try block is necessary because in some cases, there won't be any 
         # Fitabase matches - thus no last_sync_date or last_battery_level. (We 
         # could explicitly test for them, but catching KeyError should be 
@@ -145,9 +148,6 @@ if __name__ == "__main__":
                     .astype(str)
                     .replace('NaT', ''))
             join['fitc_last_battery_level'] = join['fitc_last_battery_level'].str.upper()
-
-            # For Redcap upload to work, redcap_event_name must be in the index
-            join = join.reset_index().set_index(['id_redcap', 'redcap_event_name'])
 
             # Only keep the columns of interest
             # (This removes both original Fitabase columns that we have no use for, 
