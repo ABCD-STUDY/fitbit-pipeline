@@ -16,9 +16,11 @@ import pandas as pd
 import re
 import zipfile
 
+# If executed from cron, paths are relative to PWD, so anything we need must 
+# have an absolute path
+CURRENT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
 log.basicConfig(
-        filename=os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
+        filename=os.path.join(CURRENT_DIR,
             "logs", os.path.basename(__file__) + ".log"), 
         format="%(asctime)s  %(levelname)10s  %(message)s",
         level=log.INFO)
@@ -94,7 +96,7 @@ if __name__ == "__main__":
     if args.verbose:
         log.basicConfig(level=log.DEBUG)
 
-    with open('fitabase_tokens.json') as data_file:
+    with open(os.path.join(CURRENT_DIR, 'fitabase_tokens.json')) as data_file:
         fitabase_tokens = json.load(data_file).get('tokens')
         fitabase_tokens = pd.DataFrame.from_records(fitabase_tokens, index='name')
 

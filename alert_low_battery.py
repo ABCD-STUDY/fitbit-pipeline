@@ -42,10 +42,11 @@ import requests
 from fitabase_api import FitabaseSite
 
 pd.options.mode.chained_assignment = None
+# If executed from cron, paths are relative to PWD, so anything we need must 
+# have an absolute path
+CURRENT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
 log.basicConfig(
-        filename=os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "logs", os.path.basename(__file__) + ".log"), 
+        filename=os.path.join(CURRENT_DIR, "logs", os.path.basename(__file__) + ".log"), 
         format="%(asctime)s  %(levelname)10s  %(message)s",
         level=log.INFO)
 
@@ -70,11 +71,11 @@ if __name__ == "__main__":
     if args.verbose:
         log.basicConfig(level=log.DEBUG)
 
-    with open('fitabase_tokens.json') as data_file:
+    with open(os.path.join(CURRENT_DIR, 'fitabase_tokens.json')) as data_file:
         fitabase_tokens = json.load(data_file).get('tokens')
         fitabase_tokens = pd.DataFrame.from_records(fitabase_tokens, index='name')
         # TODO: Could pass the list of keys as site choices for parse_arguments
-    with open('../../code/php/tokens.json') as data_file:
+    with open(os.path.join(CURRENT_DIR, '../../code/php/tokens.json')) as data_file:
         redcap_tokens = json.load(data_file)
         redcap_tokens = pd.DataFrame.from_dict(redcap_tokens, orient='index', columns=['token'])
 
@@ -157,7 +158,7 @@ if __name__ == "__main__":
                 'noti_site_name': site,
                 # 'noti_spanish_language': 0,
                 # 'noti_recipient': 1,
-                'noti_send_preferred_time': 1}
+                'noti_send_preferred_time': 0}  # 0: immediate, 1: daily
 
         # Setup: connect to the Notifications Redcap and retrieve past 
         # notifications for tagged participants
@@ -209,7 +210,7 @@ if __name__ == "__main__":
             # 2. Check that participant has not received a "charge your Fitbit" 
             # alert in the past week. Note that this check makes this script 
             # idempotent - if you re-run it, it will not recreate the alerts.
-            battery_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=7), 
+            battery_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=3), 
                     check_current_purpose_only=True)
 
             # Without --force, no uploads will be done. With --dry-run, upload 
