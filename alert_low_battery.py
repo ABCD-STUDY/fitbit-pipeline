@@ -21,7 +21,8 @@ run it, you need to either:
     /var/www/html/applications/fitbit/env/bin/python alert_low_battery.py -f UCSD
 
 Steps:
-1. Get device list from Fitabase.
+1. ~~Get device list from Fitabase.~~ Get device list that's funneled from 
+   Fitabase into Redcap.
 2. Get current device list from Redcap, filtering for extant fitc_device_dte 
    and extant Fitabase record.
 3. Subsetting device list from Fitabase, pull sync + battery data with 
@@ -69,38 +70,26 @@ if __name__ == "__main__":
     REDCAP_EVENT = '2_year_follow_up_y_arm_1'  # FIXME: Move to args?
     args = parse_arguments()
     if args.verbose:
-        log.basicConfig(level=log.DEBUG)
+        log.getLogger().setLevel(log.DEBUG)
 
-    with open(os.path.join(CURRENT_DIR, 'fitabase_tokens.json')) as data_file:
-        fitabase_tokens = json.load(data_file).get('tokens')
-        fitabase_tokens = pd.DataFrame.from_records(fitabase_tokens, index='name')
-        # TODO: Could pass the list of keys as site choices for parse_arguments
     with open(os.path.join(CURRENT_DIR, '../../code/php/tokens.json')) as data_file:
         redcap_tokens = json.load(data_file)
         redcap_tokens = pd.DataFrame.from_dict(redcap_tokens, orient='index', columns=['token'])
 
     # No need to keep the call one site at a time - we can iterate through all
     for site in args.site:
-        # Get device list from Fitabase
-        try:
-            fit_token = fitabase_tokens.loc[site, 'token']
-        except KeyError:
-            log.error('%s: Fitabase token ID is not available!', site)
-            continue
-        fit_api = FitabaseSite(fit_token)
-        fit_devices = fit_api.get_device_ids()
-        fit_ids = fit_devices['Name']#.tolist()
-
         # Get device list from main Redcap project
         rc_token = redcap_tokens.loc[site, 'token']
         rc_api = rc.Project(REDCAP_URL, rc_token)
-        rc_fit_fields = ['fitc_device_dte']
+        rc_fit_datefields = ['fitc_device_dte', 'fitc_last_sync_date'] 
+        rc_fit_fields = ['fitc_last_battery_level', 'fitc_fitabase_exists', 
+                'fitc_fitabase_profile_id']
         rc_devices = rc_api.export_records(
-                fields=rc_fit_fields + [rc_api.def_field],
+                fields=rc_fit_datefields + rc_fit_fields + [rc_api.def_field],
                 events=[REDCAP_EVENT],  
                 export_data_access_groups=True,
                 df_kwargs={
-                    'parse_dates': rc_fit_fields,
+                    'parse_dates': rc_fit_datefields,
                     'index_col': [rc_api.def_field]},
                 format='df')
         # Subset to only devices that are on Fitabase and currently in the data 
@@ -112,24 +101,23 @@ if __name__ == "__main__":
         rc_devices['now_collecting'] = (
                 (pd.to_datetime('today') - rc_devices['fitc_device_dte']) 
                 < pd.Timedelta(days=23))
-        active_devices = (rc_devices.loc[rc_devices.index.isin(fit_ids) & 
+        active_devices = (rc_devices.loc[rc_devices['fitc_fitabase_exists'].astype(bool) & 
                                          rc_devices['now_collecting']])
         if active_devices.empty:
             log.warn("%s: No active devices at site.", site)
             continue
-        active_devices = active_devices.join(fit_devices.set_index('Name'))
-        active_devices = active_devices.join(
-                fit_api.get_all_tracker_sync_data(active_devices))
+        else:
+            log.info("%s: %d active devices at site.", site, active_devices.shape[0])
         active_devices['time_since_sync'] = (
-                pd.to_datetime('today') - active_devices['SyncDateTracker'])
+                pd.to_datetime('today') - active_devices['fitc_last_sync_date'])
 
         # Tag a participant for a potential reminder if:
         # 
         # 1. the battery level is EMPTY + last sync was more than 6 hours ago,
         # 2. the battery level is LOW + last sync was more than 1 day ago.
 
-        empty_idx = active_devices['LatestBatteryLevelTracker'] == 'Empty'
-        low_idx   = active_devices['LatestBatteryLevelTracker'] == 'Low'
+        empty_idx = active_devices['fitc_last_battery_level'] == 'EMPTY'
+        low_idx   = active_devices['fitc_last_battery_level'] == 'LOW'
         more_than_6hr_ago = active_devices['time_since_sync'] > pd.Timedelta(hours=6)
         more_than_1d_ago  = active_devices['time_since_sync'] > pd.Timedelta(days=1)
         devices_to_notify = active_devices.loc[
