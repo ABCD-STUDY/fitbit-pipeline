@@ -43,14 +43,6 @@ def parse_arguments():
             action='store_true',
             help="Extract all files as-is (rather than creating a "
                  "subdirectory for each subject's files)")
-    # TODO: Instead of using current date, should be extracting date range from 
-    # the files, like it does with IDs
-    parser.add_argument('--no-date-subdirs',
-            action='store_true',
-            help="Skip creating subdirs with current YYYYMMDD.")
-
-    # TODO: Could also offer the option of creating per-instrument 
-    # subdirectories instead of per-date subdirectories.
 
     parser.add_argument('--no-download', '-n', action='store_true',
             help="Check but do not download.")
@@ -71,11 +63,15 @@ def ensure_directory(root, *args):
     return export_dir
 
 
-def group_files_into_directories(file_list, subject_pattern=r'^NDAR_[^_]+'):
+def group_files_into_matched_directories(file_list, subject_pattern=r'^(NDAR_[^_]+)_([^_]+)'):
     """
-    Separate a list of strings into groups based on a regex pattern match. 
+    Separate a list of strings into groups based on a regex pattern match 
+    **with multiple match groups**, thus creating an arbitrary number of 
+    subdirectories. (Those subdirectories do have to be consecutive right now - 
+    maybe there's a way to work around that?)
 
-    Returns an itertools.Groupby iterable of form group_key -> [member_list].
+    Returns an itertools.Groupby iterable of the form 
+        (group_key1, group_key2, ...) -> [member_list].
 
     (Note that re.match only matches the beginning of the string. If group_key 
     is located elsewhere in the string, re.search or equivalent should be used 
@@ -86,10 +82,9 @@ def group_files_into_directories(file_list, subject_pattern=r'^NDAR_[^_]+'):
         if not match:
             return None
         else:
-            return match.group(0)
+            return match.groups()
 
     return itertools.groupby(file_list, get_subject_id)
-
 
 if __name__ == "__main__":
     args = parse_arguments()
@@ -142,31 +137,26 @@ if __name__ == "__main__":
         # ...otherwise, extracting files one way or another:
         with fit_api.get_batch_export_zipfile(last_id) as site_zip:
             if args.no_subject_subdirs:
-                if not args.no_date_subdirs:
-                    target_dir = ensure_directory(target_dir, ymd_string)
+                target_dir = ensure_directory(target_dir, ymd_string)
                 site_zip.extractall(path=target_dir)
                 log.info('%s, %s: Extracting all files as-is to %s', 
                         site, last_id, target_dir)
             else:
                 # Group files by participant, then extract them into subdirs
                 all_files = site_zip.namelist()
-                files_by_dir = group_files_into_directories(all_files)
+                files_by_dir = group_files_into_matched_directories(all_files)
                 for subdir, files in files_by_dir:
                     # If subject ID did not match the pattern, then the file 
                     # was not grouped:
                     if subdir is not None:
-                        subject_dir = ensure_directory(target_dir, subdir)
+                        subject_dir = ensure_directory(target_dir, *subdir)
                     else:
                         subject_dir = target_dir
-
-                    # Add date subdir unless requested otherwise
-                    if not args.no_date_subdirs:
-                        subject_dir = ensure_directory(subject_dir, ymd_string)
 
                     # Extract all files in the group to the designated subdir
                     for f in files:
                         site_zip.extract(f, path=subject_dir)
 
                 log.info('%s, %s: Extracted files into per-subject folders in '
-                         '%s, no date subdirs = %s',
-                         site, last_id, target_dir, args.no_date_subdirs)
+                         '%s.',
+                         site, last_id, target_dir)
