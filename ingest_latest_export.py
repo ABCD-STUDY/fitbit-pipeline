@@ -69,7 +69,7 @@ def ensure_directory(root, *args):
     return export_dir
 
 
-def group_files_into_matched_directories(file_list, subject_pattern=r'^(NDAR_[^_]+)_([^_]+)'):
+def group_files_into_matched_directories(file_list, subject_pattern=r'^(NDAR_[^_]+)_(.+)_\d{8}_\d{8}\.csv$'):
     """
     Separate a list of strings into groups based on a regex pattern match 
     **with multiple match groups**, thus creating an arbitrary number of 
