@@ -1,4 +1,6 @@
+jinja2
 pandas>0.20
+prettypandas
 pycap
 pycurl
 requests
