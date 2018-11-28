@@ -95,7 +95,7 @@ def group_files_into_matched_directories(file_list, subject_pattern=r'^(NDAR_[^_
 if __name__ == "__main__":
     args = parse_arguments()
     if args.verbose:
-        log.basicConfig(level=log.DEBUG)
+        log.getLogger().setLevel(log.DEBUG)
 
     with open(os.path.join(CURRENT_DIR, 'fitabase_tokens.json')) as data_file:
         fitabase_tokens = json.load(data_file).get('tokens')
