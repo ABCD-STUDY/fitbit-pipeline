@@ -56,7 +56,7 @@ def load_fitabase_data(api, pull_sync=False, name_subset=None):
     fit_devices = api.get_device_ids().set_index('Name')
     if name_subset is not None:
         fit_devices = fit_devices.loc[fit_devices.index.isin(name_subset)]
-    if pull_sync:
+    if pull_sync and not fit_devices.empty:
         return fit_devices.join(api.get_all_tracker_sync_data(fit_devices))
     else:
         return fit_devices
@@ -103,6 +103,9 @@ if __name__ == "__main__":
 
         if not args.all:
             rc_devices.dropna(subset=['fitc_device_dte'], inplace=True)
+            if rc_devices.empty:
+                log.info("%s: No active devices at site", site)
+                continue
         rc_names = rc_devices.index.get_level_values('id_redcap').tolist()
 
         # Get device list from Fitabase
@@ -130,19 +133,31 @@ if __name__ == "__main__":
         # this for it
         join.loc[:, 'fitc_fitabase_exists'] = pd.notnull(join['fitc_fitabase_profile_id']).astype(int)
 
-        # It's insane, but ABCD Redcap follows MDY convention
-        join['fitc_last_sync_date'] = join['fitc_last_sync_date'].dt.strftime('%m-%d-%Y %H:%M:%S')
-        join['fitc_last_battery_level'] = join['fitc_last_battery_level'].str.upper()
+        # The try block is necessary because in some cases, there won't be any 
+        # Fitabase matches - thus no last_sync_date or last_battery_level. (We 
+        # could explicitly test for them, but catching KeyError should be 
+        # sufficiently specific.)
+        try:
+            # It's insane, but ABCD Redcap follows MDY convention
+            # Also, the field is unvalidated text, so NaT wreaks havoc
+            join['fitc_last_sync_date'] = (join['fitc_last_sync_date']
+                    .dt.strftime('%m-%d-%Y %H:%M:%S')
+                    .astype(str)
+                    .replace('NaT', ''))
+            join['fitc_last_battery_level'] = join['fitc_last_battery_level'].str.upper()
 
-        # For Redcap upload to work, redcap_event_name must be in the index
-        join = join.reset_index().set_index(['id_redcap', 'redcap_event_name'])
+            # For Redcap upload to work, redcap_event_name must be in the index
+            join = join.reset_index().set_index(['id_redcap', 'redcap_event_name'])
 
-        # Only keep the columns of interest
-        # (This removes both original Fitabase columns that we have no use for, 
-        # and original Redcap columns that we don't need to rewrite.)
-        join = join.loc[:, ['fitc_last_sync_date', 'fitc_last_battery_level', 
-            'fitc_fitabase_exists', 'fitc_fitabase_profile_id']]
-
+            # Only keep the columns of interest
+            # (This removes both original Fitabase columns that we have no use for, 
+            # and original Redcap columns that we don't need to rewrite.)
+            join = join.loc[:, ['fitc_last_sync_date', 'fitc_last_battery_level', 
+                'fitc_fitabase_exists', 'fitc_fitabase_profile_id']]
+        except KeyError as e:
+            log.warn('%s: No corresponding Fitabase entries for any of %s.', site,
+                    join.index.get_level_values('id_redcap').tolist())
+            join = join.loc[:, ['fitc_fitabase_exists']]
         if args.dry_run:
             print(join)
         else:
