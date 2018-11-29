@@ -1,8 +1,11 @@
 jinja2
+matplotlib
+line_profiler
 pandas>0.20
 prettypandas
 pycap
 pycurl
 requests
 pytest
+seaborn
 great_expectations
