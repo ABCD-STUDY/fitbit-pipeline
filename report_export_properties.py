@@ -58,16 +58,8 @@ if __name__ == "__main__":
             all_info.loc[:, col] = (
                     pd.to_datetime(all_info.loc[:, col], utc=True)
                     .dt.tz_convert('US/Pacific'))
-        ## Why a loop, you might ask?
-        ##
-        ## The following doesn't work due to a bug in pandas: 
-        ## https://github.com/pandas-dev/pandas/issues/20511
-        # all_info.loc[:, datelike_cols] = all_info.loc[:, datelike_cols].apply(
-        #         pd.to_datetime)
-        # all_info.loc[:, col] = pd.to_datetime(all_info.loc[:, col]).dt.tz_localize('GMT')
-        # all_info.loc[:, [col]] = pd.to_datetime(all_info[:, [col]])
-        # all_info.loc[:, col] = all_info.loc[:, col].apply(pd.to_datetime)
-        # all_info.loc[:, col] = all_info.loc[:, [col]].apply(pd.to_datetime)
+            # Loop, because there's a bug in pandas for slice assignment:
+            # https://github.com/pandas-dev/pandas/issues/20511
 
     all_info.sort_values('ProcessingCompleted', inplace=True)
     all_info.to_csv(args.outfile)
