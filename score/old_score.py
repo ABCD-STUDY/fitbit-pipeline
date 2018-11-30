@@ -157,29 +157,10 @@ def normalizeDate30( t, column ):
     # return the new table
     return table3[[column,'SleepStage','SleepStage30']]
 
-def process_timerange(pGUID, timerange, date0): 
-    """
-    Load the raw data from per-subject files, return processed scores in a list 
-    of Redcap upload-ready JSON-like dicts (i.e. each dict has keys id_redcap 
-    and redcap_event_name alongside the keys for whatever scores were computed.
 
-    pGUID: id_redcap
-    timerange: list of dicts. Each dict has keys:
-        - filename (path to CSV)
-        - pGUID 
-        - processed (bool) - already set to True by the time they're passed 
-          into the function
-    date0: Datetime on which the device was first worn; score day after
-    """
-    scores = []
-    # import the data
-    try:
-        heartrate = [item['filename'] for item in timerange if 'heartrate_1min' in item['filename']][0]
-    except IndexError:
-        print("Error: timerange without heartrate_1min " + str([item['filename'] for item in timerange]))
-        return False
         
-    hrdata = pd.read_csv(heartrate)
+
+def prepare_heart_rate(hrdata):
     # normalize the Time entry to remove seconds
     normalizeDate(hrdata, 'Time')
 
@@ -225,6 +206,31 @@ def process_timerange(pGUID, timerange, date0):
     #    if (row['HR_Value'] < 40) or (row['HR_Value'] > 210):
     #        removeIdxArray.append(index)
     hrdata.drop(hrdata.index[removeIdxArray])
+    return hrdata
+
+
+def run_pandas_prep(validsteps, date0, min_day=-1, max_day=22):
+    validsteps.loc[:, 'Datetime'] = pd.to_datetime(validsteps['Time'], format='%m/%d/%Y %H:%M')
+    validsteps['dayofweek'] = validsteps['Datetime'].dt.dayofweek
+    validsteps['start_delta'] = validsteps['Datetime'] - date0
+    validsteps['start_delta_days'] = validsteps['start_delta'].dt.days
+
+    if min_day and max_day:
+        return validsteps[(validsteps['start_delta_days'] > min_day) & 
+                (validsteps['start_delta_days'] < max_day)]
+    else:
+        return validsteps
+
+
+def get_valid_steps(timerange):
+    # import the data
+    try:
+        heartrate = [item['filename'] for item in timerange if 'heartrate_1min' in item['filename']][0]
+    except IndexError:
+        print("Error: timerange without heartrate_1min " + str([item['filename'] for item in timerange]))
+        return False
+        
+    hrdata = pd.read_csv(heartrate).pipe(prepare_heart_rate)
     
     steps = [item['filename'] for item in timerange if 'minuteStepsNarrow' in item['filename']][0]
     stdata = pd.read_csv(steps)
@@ -271,6 +277,26 @@ def process_timerange(pGUID, timerange, date0):
     validsteps  = pd.merge(validsteps, validsteps4, left_on="Time", right_on="Time",  how="outer")
     validsteps  = pd.merge(validsteps, validsteps5, left_on="Time", right_on="Time",  how="outer")
 
+    return validsteps
+
+
+def process_timerange(pGUID, timerange, date0): 
+    """
+    Load the raw data from per-subject files, return processed scores in a list 
+    of Redcap upload-ready JSON-like dicts (i.e. each dict has keys id_redcap 
+    and redcap_event_name alongside the keys for whatever scores were computed.
+
+    pGUID: id_redcap
+    timerange: list of dicts. Each dict has keys:
+        - filename (path to CSV)
+        - pGUID 
+        - processed (bool) - already set to True by the time they're passed 
+          into the function
+    date0: Datetime on which the device was first worn; score day after
+    """
+    scores = []
+
+    validsteps = get_valid_steps(timerange).pipe(run_pandas_prep, date0)
     # valid steps should filter by sleep value (don't count steps if the sleep value is 0 or above)
     
     #print("merged data for participant: " + pGUID + " is:")
