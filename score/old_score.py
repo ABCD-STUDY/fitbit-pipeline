@@ -28,11 +28,12 @@ def parse_args():
     #         help='Score all participants, regardless of site (no Redcap pull')
     parser.add_argument('--input', '-i', default='test_data',
             help='Path to folder with Fitabase exports')
+    parser.add_argument('--event', default='baseline_year_1_arm_1')
     parser.add_argument('--verbose', '-v')
     return parser.parse_args()
 
 
-def redcap_site_subjects(token):
+def redcap_site_subjects(token, event):
     buf = cStringIO.StringIO()
     # variables we need from REDCap
     data = {
@@ -43,7 +44,7 @@ def redcap_site_subjects(token):
         'fields[0]': 'id_redcap',
         'fields[1]': 'redcap_event_name',
         'fields[2]': 'fitc_device_dte',
-        'events[0]': 'baseline_year_1_arm_1',
+        'events[0]': event,
         'rawOrLabel': 'raw',
         'rawOrLabelHeaders': 'raw',
         'exportCheckboxLabel': 'false',
@@ -862,7 +863,7 @@ if __name__ == "__main__":
         tokens = json.load(data_file)
         site_token = tokens[site]
 
-    out = redcap_site_subjects(site_token)
+    out = redcap_site_subjects(site_token, args.event)
     fitabase_files = collect_fitabase_files_from_folder(args.input)
 
     scores = []
