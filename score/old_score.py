@@ -158,6 +158,19 @@ def normalizeDate30( t, column ):
     return table3[[column,'SleepStage','SleepStage30']]
 
 def process_timerange(pGUID, timerange, date0): 
+    """
+    Load the raw data from per-subject files, return processed scores in a list 
+    of Redcap upload-ready JSON-like dicts (i.e. each dict has keys id_redcap 
+    and redcap_event_name alongside the keys for whatever scores were computed.
+
+    pGUID: id_redcap
+    timerange: list of dicts. Each dict has keys:
+        - filename (path to CSV)
+        - pGUID 
+        - processed (bool) - already set to True by the time they're passed 
+          into the function
+    date0: Datetime on which the device was first worn; score day after
+    """
     scores = []
     # import the data
     try:
@@ -780,120 +793,120 @@ def process_timerange(pGUID, timerange, date0):
     return scores
         
 
-args = parse_args()
-site = args.site
-force = args.force
-with open('/var/www/html/code/php/tokens.json') as data_file:
-    tokens = json.load(data_file)
-    site_token = tokens[site]
+if __name__ == "__main__":
+    args = parse_args()
+    site = args.site
+    with open('/var/www/html/code/php/tokens.json') as data_file:
+        tokens = json.load(data_file)
+        site_token = tokens[site]
 
-out = redcap_site_subjects(site_token)
-fitabase_files = collect_fitabase_files_from_folder(args.input)
+    out = redcap_site_subjects(site_token)
+    fitabase_files = collect_fitabase_files_from_folder(args.input)
 
-scores = []
-# walk over the participants for this site
-for u in out:
-    pGUID = u['id_redcap']
-    # search for scores for this pGUID
-    if not(pGUID in fitabase_files):
-        continue
-    # mark this pGUID as getting processed
-    for d in fitabase_files[pGUID]:
-        d['processed'] = True
-    print("importing data for %s [%s]" % (pGUID, site))
-    date0 = u['fitc_device_dte']
-    if date0 == '':
-        print("Error: REDCap missing fitc_timestamp_v2 for participant " + pGUID + ". Data for this participant cannot be imported.")
-        scores.append( { 'id_redcap': u['id_redcap'], 'redcap_event_name': u['redcap_event_name'], 'fits_ss_import_error': "missing fitc_timestamp_v2" })
-        continue
-    # 2017-06-08 14:43
+    scores = []
+    # walk over the participants for this site
+    for u in out:
+        pGUID = u['id_redcap']
+        # search for scores for this pGUID
+        if not(pGUID in fitabase_files):
+            continue
+        # mark this pGUID as getting processed
+        for d in fitabase_files[pGUID]:
+            d['processed'] = True
+        print("importing data for %s [%s]" % (pGUID, site))
+        date0 = u['fitc_device_dte']
+        if date0 == '':
+            print("Error: REDCap missing fitc_timestamp_v2 for participant " + pGUID + ". Data for this participant cannot be imported.")
+            scores.append( { 'id_redcap': u['id_redcap'], 'redcap_event_name': u['redcap_event_name'], 'fits_ss_import_error': "missing fitc_timestamp_v2" })
+            continue
+        # 2017-06-08 14:43
 
-    date0 = datetime.strptime(date0, '%Y-%m-%d %H:%M')
-    #print("date fitbit was given out: " + str(date0))
-    
-    # we need to ask what the correct event is for the data
-    for timerange in dateRangeSet(fitabase_files[pGUID]):
-        timerange_scores = process_timerange(pGUID, timerange, date0)
-        if timerange_scores:
-            scores.extend(timerange_scores)
+        date0 = datetime.strptime(date0, '%Y-%m-%d %H:%M')
+        #print("date fitbit was given out: " + str(date0))
         
-        #print(json.dumps(scores))
-    # scores.append({ 'id_redcap': u['id_redcap'], 'redcap_event_name': u['redcap_event_name'], "survey_handle": fake_email })
+        # we need to ask what the correct event is for the data
+        for timerange in dateRangeSet(fitabase_files[pGUID]):
+            timerange_scores = process_timerange(pGUID, timerange, date0)
+            if timerange_scores:
+                scores.extend(timerange_scores)
+            
+            #print(json.dumps(scores))
+        # scores.append({ 'id_redcap': u['id_redcap'], 'redcap_event_name': u['redcap_event_name'], "survey_handle": fake_email })
 
-# remove entries that are null or NaN
-for score in scores:
-    if score['id_redcap'] == "NDAR_INV05LGG3GZ":
-        print("scores are: " + json.dumps(score))
-    for idx, d in score.items():
-        try:
-            if (d == None) or math.isnan(float(d)):
-                # set to empty string
-                if score['id_redcap'] == "NDAR_INV05LGG3GZ":
-                    print("Set score to empty for " + str(d))
-                score[idx] = ""
-        except ValueError:
-            pass
-        except TypeError:
-            print("d is not correct, its %s for key %s" % (str(d), idx))
-    if not('fits_ss_import_error' in score):
-        # overwrite any previous  value in this field (import is ok)
-        score['fits_ss_import_error'] = "no error"
-    
-# We can minimize the number of times we have to send data to REDCap if we collect the measure we want to update
-# based on the id_redcap and redcap_event_name. Whenever both are the same we can merge the measures.
-scores_sorted = sorted(scores, key=lambda d: (d['id_redcap'], d['redcap_event_name']))
-# print(json.dumps(scores_sorted))
-scores_combined = []
-scores_current = {}
-for scores in scores_sorted:
-    if (len(scores_current.keys()) == 0):
-        scores_current = scores.copy()
-    if (scores_current['id_redcap'] == scores['id_redcap']) and (scores_current['redcap_event_name'] == scores['redcap_event_name']):
-        scores_current.update(scores)
-    else:
-        scores_combined.append(scores_current)
-        scores_current = scores.copy()
-scores_combined.append(scores_current)
-#print(json.dumps(scores_combined,indent=4))
-
-def chunks(l, n):
-    # For item i in a range that is a length of l,
-    for i in range(0, len(l), n):
-        # Create an index range for l of n items:
-        yield l[i:i+n]
+    # remove entries that are null or NaN
+    for score in scores:
+        if score['id_redcap'] == "NDAR_INV05LGG3GZ":
+            print("scores are: " + json.dumps(score))
+        for idx, d in score.items():
+            try:
+                if (d == None) or math.isnan(float(d)):
+                    # set to empty string
+                    if score['id_redcap'] == "NDAR_INV05LGG3GZ":
+                        print("Set score to empty for " + str(d))
+                    score[idx] = ""
+            except ValueError:
+                pass
+            except TypeError:
+                print("d is not correct, its %s for key %s" % (str(d), idx))
+        if not('fits_ss_import_error' in score):
+            # overwrite any previous  value in this field (import is ok)
+            score['fits_ss_import_error'] = "no error"
         
-# now add the values to REDCap
-if force == "-f":
-    print("Add scores to REDCap...")
-    for score in chunks(scores_combined, 3):
-        #print("try to add: " + json.dumps(score))
-        buf = cStringIO.StringIO()
-        data = {
-            'token': tokens[site],
-            'content': 'record',
-            'format': 'json',
-            'type': 'flat',
-            'overwriteBehavior': 'normal',
-            'data': json.dumps(score),
-            'returnContent': 'count',
-            'returnFormat': 'json'
-        }
-        ch = pycurl.Curl()
-        ch.setopt(ch.URL, 'https://abcd-rc.ucsd.edu/redcap/api/')
-        ch.setopt(ch.HTTPPOST, data.items())
-        ch.setopt(ch.WRITEFUNCTION, buf.write)
-        ch.perform()
-        ch.close()
-        print buf.getvalue()
-        buf.close()
-        # beauty sleep
-        sleep(0.02)
-else:        
-    print(json.dumps(scores_combined, indent=4))
+    # We can minimize the number of times we have to send data to REDCap if we collect the measure we want to update
+    # based on the id_redcap and redcap_event_name. Whenever both are the same we can merge the measures.
+    scores_sorted = sorted(scores, key=lambda d: (d['id_redcap'], d['redcap_event_name']))
+    # print(json.dumps(scores_sorted))
+    scores_combined = []
+    scores_current = {}
+    for scores in scores_sorted:
+        if (len(scores_current.keys()) == 0):
+            scores_current = scores.copy()
+        if (scores_current['id_redcap'] == scores['id_redcap']) and (scores_current['redcap_event_name'] == scores['redcap_event_name']):
+            scores_current.update(scores)
+        else:
+            scores_combined.append(scores_current)
+            scores_current = scores.copy()
+    scores_combined.append(scores_current)
+    #print(json.dumps(scores_combined,indent=4))
 
-# list the files that we did not process
-for pGUID in fitabase_files:
-    for entry in fitabase_files[pGUID]:
-        if not(entry['processed']):
-            print("Error: we did not process file: %s (example file %s) for site %s" %( pGUID, entry['filename'], site ))
-            break
+    def chunks(l, n):
+        # For item i in a range that is a length of l,
+        for i in range(0, len(l), n):
+            # Create an index range for l of n items:
+            yield l[i:i+n]
+            
+    # now add the values to REDCap
+    if args.force:
+        print("Add scores to REDCap...")
+        for score in chunks(scores_combined, 3):
+            #print("try to add: " + json.dumps(score))
+            buf = cStringIO.StringIO()
+            data = {
+                'token': tokens[site],
+                'content': 'record',
+                'format': 'json',
+                'type': 'flat',
+                'overwriteBehavior': 'normal',
+                'data': json.dumps(score),
+                'returnContent': 'count',
+                'returnFormat': 'json'
+            }
+            ch = pycurl.Curl()
+            ch.setopt(ch.URL, 'https://abcd-rc.ucsd.edu/redcap/api/')
+            ch.setopt(ch.HTTPPOST, data.items())
+            ch.setopt(ch.WRITEFUNCTION, buf.write)
+            ch.perform()
+            ch.close()
+            print buf.getvalue()
+            buf.close()
+            # beauty sleep
+            sleep(0.02)
+    else:        
+        print(json.dumps(scores_combined, indent=4))
+
+    # list the files that we did not process
+    for pGUID in fitabase_files:
+        for entry in fitabase_files[pGUID]:
+            if not(entry['processed']):
+                print("Error: we did not process file: %s (example file %s) for site %s" %( pGUID, entry['filename'], site ))
+                break
