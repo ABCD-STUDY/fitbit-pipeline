@@ -23,9 +23,9 @@ def parse_args():
     parser = argparse.ArgumentParser(
             description="Score all participants for a given site")
     parser.add_argument('site', default='VCU', help='ABCD site abbreviation')
-    parser.add_argument('--force', '-f', help='Upload result to Redcap')
-    parser.add_argument('--ignore-site', action='store_true',
-            help='Score all participants, regardless of site (no Redcap pull')
+    parser.add_argument('--upload', '-f', help='Upload result to Redcap')
+    # parser.add_argument('--ignore-site', action='store_true',
+    #         help='Score all participants, regardless of site (no Redcap pull')
     parser.add_argument('--input', '-i', default='test_data',
             help='Path to folder with Fitabase exports')
     parser.add_argument('--verbose', '-v')
@@ -928,7 +928,7 @@ if __name__ == "__main__":
     #print(json.dumps(scores_combined,indent=4))
 
     # now add the values to REDCap
-    if args.force:
+    if args.upload:
         upload_scores_to_redcap(scores_combined, site_token)
     else:        
         print(json.dumps(scores_combined, indent=4))
