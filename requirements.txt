@@ -7,5 +7,6 @@ pycap
 pycurl
 requests
 pytest
+pytest-watch
 seaborn
 great_expectations
