@@ -76,6 +76,10 @@ if __name__ == "__main__":
         redcap_tokens = json.load(data_file)
         redcap_tokens = pd.DataFrame.from_dict(redcap_tokens, orient='index', columns=['token'])
 
+    with open(os.path.join(CURRENT_DIR, 'notifications_token.json')) as token_file:
+        notif_token = json.load(token_file).get('token')
+        notif_api = rc.Project(REDCAP_URL, notif_token)
+
     # No need to keep the call one site at a time - we can iterate through all
     for site in args.site:
         # Get device list from main Redcap project
@@ -151,8 +155,6 @@ if __name__ == "__main__":
         # Setup: connect to the Notifications Redcap and retrieve past 
         # notifications for tagged participants
         ids_to_notify = devices_to_notify.index.get_level_values('id_redcap').tolist()
-        notif_token = ''
-        notif_api = rc.Project(REDCAP_URL, notif_token)
 
         try:
             notif_records = notif_api.export_records(records=ids_to_notify, 

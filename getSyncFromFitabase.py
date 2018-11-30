@@ -11,6 +11,9 @@ from StringIO import StringIO
 with open('fitabase_tokens.json') as data_file:
     ftokens = json.load(data_file)
 
+with open('notifications_token.json') as token_file:
+    notif_token = json.load(token_file).get('token')
+
 # default
 site = "UCSD"
 # do not add to REDCap
@@ -238,7 +241,7 @@ for d in v:
             # what is the next redcap_repeat_instance that is not yet used up?
             buf = cStringIO.StringIO()
             data = {
-                'token': '',
+                'token': notif_token,
                 'content': 'record',
                 'format': 'json',
                 'type': 'flat',
@@ -321,7 +324,7 @@ for d in v:
             # create the notifications in REDCap
             buf = cStringIO.StringIO()
             data = {
-                    'token': '',
+                    'token': notif_token,
                     'content': 'record',
                     'format': 'json',
                     'type': 'flat',
