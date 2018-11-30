@@ -1,7 +1,9 @@
 #!/usr/bin/env python
-#
-# score fitabase downloaded minute data
-#
+"""
+When pointed at a directory, classify files into measures based on filename, 
+load them, process the data, and output it or upload it to Redcap.
+
+"""
 
 # todo: add day of the week (for first day) fits_ss_day_of_week_day00
 
@@ -450,7 +452,11 @@ def process_timerange(pGUID, timerange, date0):
                 vname2 = row['SleepStage30']
                 sumSleepStagePerDay[vname][vname2] = sumSleepStagePerDay[vname][vname2] + .5  # how many minutes of this sleep value
 
-
+    #
+    # Processing into JSON-friendly score items starts here
+    #
+    # (Given the DataFrame 
+    #
     for idx, entry in bedtimePerDay.items():
         if (idx > -1) and (idx < 22):
             vname1 = "fits_ss_bedtime_day%02d" % (idx)
@@ -861,14 +867,10 @@ if __name__ == "__main__":
 
     # remove entries that are null or NaN
     for score in scores:
-        if score['id_redcap'] == "NDAR_INV05LGG3GZ":
-            print("scores are: " + json.dumps(score))
         for idx, d in score.items():
             try:
                 if (d == None) or math.isnan(float(d)):
                     # set to empty string
-                    if score['id_redcap'] == "NDAR_INV05LGG3GZ":
-                        print("Set score to empty for " + str(d))
                     score[idx] = ""
             except ValueError:
                 pass
