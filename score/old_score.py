@@ -160,6 +160,36 @@ def normalizeDate30( t, column ):
     return table3[[column,'SleepStage','SleepStage30']]
 
 
+def upload_scores_to_redcap(scores_combined, site_token):
+    def chunks(l, n):
+        # For item i in a range that is a length of l,
+        for i in range(0, len(l), n):
+            # Create an index range for l of n items:
+            yield l[i:i+n]
+
+    for score in chunks(scores_combined, 3):
+        #print("try to add: " + json.dumps(score))
+        buf = cStringIO.StringIO()
+        data = {
+            'token': site_token,
+            'content': 'record',
+            'format': 'json',
+            'type': 'flat',
+            'overwriteBehavior': 'normal',
+            'data': json.dumps(score),
+            'returnContent': 'count',
+            'returnFormat': 'json'
+        }
+        ch = pycurl.Curl()
+        ch.setopt(ch.URL, 'https://abcd-rc.ucsd.edu/redcap/api/')
+        ch.setopt(ch.HTTPPOST, data.items())
+        ch.setopt(ch.WRITEFUNCTION, buf.write)
+        ch.perform()
+        ch.close()
+        print buf.getvalue()
+        buf.close()
+        # beauty sleep
+        sleep(0.02)
         
 
 def prepare_heart_rate(hrdata):
@@ -897,38 +927,9 @@ if __name__ == "__main__":
     scores_combined.append(scores_current)
     #print(json.dumps(scores_combined,indent=4))
 
-    def chunks(l, n):
-        # For item i in a range that is a length of l,
-        for i in range(0, len(l), n):
-            # Create an index range for l of n items:
-            yield l[i:i+n]
-            
     # now add the values to REDCap
     if args.force:
-        print("Add scores to REDCap...")
-        for score in chunks(scores_combined, 3):
-            #print("try to add: " + json.dumps(score))
-            buf = cStringIO.StringIO()
-            data = {
-                'token': tokens[site],
-                'content': 'record',
-                'format': 'json',
-                'type': 'flat',
-                'overwriteBehavior': 'normal',
-                'data': json.dumps(score),
-                'returnContent': 'count',
-                'returnFormat': 'json'
-            }
-            ch = pycurl.Curl()
-            ch.setopt(ch.URL, 'https://abcd-rc.ucsd.edu/redcap/api/')
-            ch.setopt(ch.HTTPPOST, data.items())
-            ch.setopt(ch.WRITEFUNCTION, buf.write)
-            ch.perform()
-            ch.close()
-            print buf.getvalue()
-            buf.close()
-            # beauty sleep
-            sleep(0.02)
+        upload_scores_to_redcap(scores_combined, site_token)
     else:        
         print(json.dumps(scores_combined, indent=4))
 
