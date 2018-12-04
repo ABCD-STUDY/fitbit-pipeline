@@ -99,6 +99,14 @@ class NotificationSubmission(object):
             self.__abort_reason = 'Initialized with dry_run=True'
 
 
+    @property
+    def is_aborted(self):
+        return self.__abort
+
+
+    @property
+    def abortion_reason(self):
+        return self.__abort_reason
 
 
     def stop_if_early(self, timedelta=None, check_current_purpose_only=False,
