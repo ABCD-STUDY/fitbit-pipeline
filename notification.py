@@ -52,6 +52,7 @@ class NotificationSubmission(object):
         present, it will be pulled for the subject if/when needed.
         """
         self.__abort = False
+        self.__abort_reason = ''
         self.__previous_notifications = None
         self.previous_notifications = previous_notifications
 
@@ -95,6 +96,9 @@ class NotificationSubmission(object):
 
         if dry_run:
             self.__abort = True
+            self.__abort_reason = 'Initialized with dry_run=True'
+
+
 
 
     def stop_if_early(self, timedelta=None, check_current_purpose_only=False,
@@ -149,6 +153,7 @@ class NotificationSubmission(object):
         # messages constitute spam and must be abandoned.
         if not notifications_subject.empty:
             self.__abort = True
+            self.__abort_reason = 'Aborted in stop_if_early, timedelta: %s' % timedelta
             return True
         else:
             return False
