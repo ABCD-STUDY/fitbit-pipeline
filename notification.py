@@ -40,7 +40,8 @@ class NotificationSubmission(object):
     """
 
 
-    def __init__(self, api, submission_df, previous_notifications=None, dry_run=False):
+    def __init__(self, api, submission_df, previous_notifications=None, 
+            dry_run=False, record_id=None, purpose=None):
         """
         Seed the submission with content and connectivity.
 
@@ -57,15 +58,37 @@ class NotificationSubmission(object):
         # Submission_df is already expected with Redcap-compatible columns
         assert isinstance(api, redcap.Project)
 
+        if record_id is not None:
+            self.record_id = record_id
+
         # Check that only one subject is in the submission
-        record_ids = submission_df.index.unique().tolist()
-        assert len(record_ids) == 1, "submission_df can only contain one subject"
-        self.record_id = record_ids[0]
+        if (('record_id' in submission_df.columns) 
+                or ('record_id' in submission_df.index.names)):
+
+            try:
+                record_ids = submission_df.index.get_level_values('record_id').unique().tolist()
+            except:
+                record_ids = submission_df.loc[:, 'record_id'].unique().tolist()
+
+            assert len(record_ids) == 1, "submission_df can only contain one subject"
+            if record_id is None:
+                self.record_id = record_ids[0]
+            elif record_ids[0] != record_id:
+                raise ValueError('Different record_id in constructor (%s) '
+                    'and in submission_df (%s)' % (record_id, record_ids[0]))
 
         # Check that only one purpose is in the submission
-        purposes = submission_df['noti_purpose'].unique().tolist()
-        assert len(purposes) == 1, "submission_df can only contain one purpose"
-        self.purpose = purposes[0]
+        if purpose is not None:
+            self.purpose = purpose
+
+        if 'noti_purpose' in submission_df.columns:
+            purposes = submission_df['noti_purpose'].unique().tolist()
+            assert len(purposes) == 1, "submission_df can only contain one purpose"
+            if purpose is None:
+                self.purpose = purposes[0]
+            elif (purposes[0] != purpose):
+                raise ValueError('Different noti_purpose in constructor (%s) '
+                    'and in submission_df (%s)' % (purpose, purposes[0]))
 
         self.api = api
         self.submission = submission_df
@@ -74,10 +97,12 @@ class NotificationSubmission(object):
             self.__abort = True
 
 
-    def stop_if_early(self, timedelta=None, check_current_purpose_only=False):
+    def stop_if_early(self, timedelta=None, check_current_purpose_only=False,
+            check_created_or_sent_only=False, check_current_recipient_only=False):
         """
         Check if too little time has elapsed since previous messages have been 
-        sent.
+        sent. (If no timedelta is passed, *any* previous notification is cause 
+        for abort.)
 
         If the current messages would be too early, returns True and sets 
         self.__abort to True. Otherwise, returns False.
@@ -101,6 +126,15 @@ class NotificationSubmission(object):
         if check_current_purpose_only:
             notifications_subject = notifications_subject.loc[
                     notifications_subject['noti_purpose'] == self.purpose]
+
+        if check_created_or_sent_only:
+            notifications_subject = notifications_subject.loc[
+                    notifications_subject['noti_status'].isin(
+                        [STATUS_CREATED, STATUS_SENT])]
+
+        if check_current_recipient_only:
+            # FIXME: Implement
+            pass
 
         if timedelta:
             # TODO: Should we compare to creation timestamp or send timestamp?
