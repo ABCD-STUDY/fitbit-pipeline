@@ -5,6 +5,19 @@ import redcap
 
 # NOTE: Should previous_notifications be an class attribute rather than an 
 # instance attribute?
+STATUS_CREATED = 1
+STATUS_SENT = 2
+STATUS_FAILURE = 3
+STATUS_RESOLVED = 4
+STATUS_NO_CONTACT = 5
+STATUS_LANG_MISMATCH = 6
+
+RECIPIENT_PARENT = 1
+RECIPIENT_CHILD  = 2
+RECIPIENT_BOTH   = 3
+
+DELIVERY_NOW = 0
+DELIVERY_MORNING = 1
 
 class NotificationSubmission(object):
     """
