@@ -125,6 +125,7 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                 ' --subjects; skipping', site)
             return None
         else:
+            to_notify = to_notify.loc[ids_to_notify]
             log.info('%s: Trimmed device list to %d, out of %d IDs '
                 'specified in --subjects', site, len(ids_to_notify), 
                 len(only_subjects))
