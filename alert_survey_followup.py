@@ -185,8 +185,6 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
         submission = NotificationSubmission(notif_api, notifications_df, 
                 notif_records, dry_run=dry_run)
 
-        log.debug("%s, %s: %s", site, pGUID, submission.submission)
-
         # Only send the survey if no survey notification has been sent in 
         # the past 3 days
         survey_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=3), 
@@ -288,7 +286,7 @@ def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link
                     "must complete their questionnaire. If they haven't "
                     "received a text with the link to the questionnaire, "
                     "please contact your ABCD site."),
-                'parent_en': ("Your child has completed the post-Fitbit survey."
+                'parent_en': ("Your child has completed the post-Fitbi survey."
                     "In order to receive your ABCD payment, you must "
                     "complete the questionnaire too: %s" % parent_link),
                 'parent_es': ("Your child has completed the post-Fitbit survey."
