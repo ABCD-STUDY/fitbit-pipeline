@@ -158,32 +158,21 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
     notified = []
     for pGUID in ids_to_notify:
         notifications = []
+        # Get messages dependent on which surveys are missing, filled in with 
+        # links for this pGUID
         messages = get_targeted_messages(
                 youth_missing=to_notify.loc[pGUID, 'youth_missing'],
                 parent_missing=to_notify.loc[pGUID, 'parent_missing'],
                 youth_link=to_notify.loc[pGUID, 'youth_link'],
-                parent_link=to_notify.loc[pGUID, 'parent_link'],
-                )
-        # For each message, merge defaults and specifics and appends them 
-        # to the notifications list
-        for recipient, message in messages.items():
-            if recipient.startswith('parent'):
-                deliver_to = RECIPIENT_PARENT
-            else:
-                deliver_to = RECIPIENT_CHILD
+                parent_link=to_notify.loc[pGUID, 'parent_link'])
 
-            specifics = {
-                    'record_id': pGUID,
-                    'noti_text': message,
-                    'noti_spanish_language': int(recipient.endswith('_es')),
-                    'noti_recipient': deliver_to}
-            notifications.append(dict(default, **specifics))
-
-        log.debug('%s, %s: %s', site, pGUID, notifications)
-
+        # Convert messages to a DataFrame acceptable to NotificationSubmission
+        notifications = process_messages(messages, default, record_id=pGUID)
         notifications_df = pd.DataFrame(notifications).set_index('record_id')
         submission = NotificationSubmission(notif_api, notifications_df, 
                 notif_records, dry_run=dry_run)
+
+        log.debug('%s, %s: %s', site, pGUID, notifications)
 
         # Only send the survey if no survey notification has been sent in 
         # the past 3 days
@@ -299,6 +288,35 @@ def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link
         return None
 
     return messages
+
+
+def process_messages(messages, defaults, **kwargs):
+    """
+    Given a {RECIPIENT}_{LANG} -> message dict, combine with defaults to create 
+    a DataFrame-like dict for NotificationSubmission to ingest.
+    """
+    # For each message, merge defaults and specifics and appends them to the 
+    # notifications list
+    notifications = []
+    for recipient, message in messages.items():
+        if recipient.startswith('parent'):
+            deliver_to = RECIPIENT_PARENT
+        else:
+            deliver_to = RECIPIENT_CHILD
+
+        specifics = {
+                'noti_text': message,
+                'noti_spanish_language': int(recipient.endswith('_es')),
+                'noti_recipient': deliver_to}
+
+        notification = defaults.copy()
+        notification.update(specifics)
+        notification.update(kwargs)
+        # notification = dict(dict(defaults, **specifics), **kwargs)
+        notifications.append(notification)
+
+    return notifications
+    # return pd.DataFrame(notifications).set_index('record_id')
 
 
 if __name__ == "__main__":
