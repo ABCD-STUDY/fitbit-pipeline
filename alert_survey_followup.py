@@ -17,7 +17,9 @@ import datetime
 from fitabase_api import FitabaseSite
 import json
 import logging as log
-from notification import NotificationSubmission
+from notification import (NotificationSubmission, RECIPIENT_PARENT, 
+        STATUS_CREATED, RECIPIENT_CHILD, RECIPIENT_BOTH, DELIVERY_NOW, 
+        DELIVERY_MORNING)
 import os
 import pandas as pd
 import redcap as rc
@@ -89,47 +91,22 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
     done_devices['time_since_survey_receipt'] = (
             pd.to_datetime('today') - done_devices['fitc_noti_generated_survey'])
 
-    # 1. TODO: If a participant is done but has not been sent a survey 
-    #    link, do so (functionality currently implemented by 
-    #    sendEndSurveys.py)
-    # 2. If a participant has been sent a survey link, but survey has not 
-    #    been submitted (because answer to first question is missing)
 
-    survey_not_sent = pd.isnull(done_devices['fitc_noti_generated_survey'])
-    survey_sent_3d  = done_devices['time_since_survey_receipt'] > pd.Timedelta(days=3)
-    # fitc_noti_generated_survey is currently set by sendEndSurveys, not by 
-    # the PII, so it shouldn't be regarded as gospel - instead, we can 
-    # offload the work of determining whether a survey notification has 
-    # been sent to NotificationSubmission.stop_if_early.
-    missing_youth   = pd.isnull(done_devices['fitpo_physical'])
-    missing_parent  = pd.isnull(done_devices['fitpo_physical_p'])
 
-    # youth_to_notify = done_devices.loc[survey_sent_3d & missing_youth]
-    # parent_to_notify = done_devices.loc[survey_sent_3d & missing_parent]
-    # to_notify = done_devices.loc[(survey_not_sent | survey_sent_3d) 
-    #         & (missing_parent | missing_youth)]
-    to_notify = done_devices.loc[missing_parent | missing_youth]
+    # Find all participants who are done, but either they or their parents did 
+    # not complete the survey. (NotificationSubmission will decide whether 
+    # they've been sent a notification.)
+    youth_missing   = pd.isnull(done_devices['fitpo_physical'])
+    parent_missing  = pd.isnull(done_devices['fitpo_physical_p'])
+
+    # Save whether youth or parent survey is missing for later
+    done_devices.loc[youth_missing, 'youth_missing'] = True
+    done_devices.loc[parent_missing, 'parent_missing'] = True
+
+    # Create a useful subset that only contains notifiable subjects
+    to_notify = done_devices.loc[parent_missing | youth_missing]
     ids_to_notify = to_notify.index.get_level_values('id_redcap').tolist()
 
-    # For now, we assume that parent can get all notifications.
-    #
-    # TODO: Are the notification to parent and youth separate? What if PII 
-    # DB didn't have the contact for one or both of them? (We'd see that in 
-    # the missing fitc_noti_generated_survey.)
-    #
-    # Cases:
-    #
-    # 1. Notification has been sent but:
-    #       - Neither has completed the survey. -> re-send links to both
-    #       - Youth has completed the survey. -> send parent link, send 
-    #       youth a message to bother parent
-    #       - Parent has completed the survey. -> send youth link, send 
-    #       parent a message to bother the youth.
-    # 2. Notification has not been sent and:
-    #       - There are devices. -> ? maybe devices were added later?
-    #       - There are no devices. -> throw an error for sites?
-
-    # if youth_to_notify.empty and parent_to_notify:
     if to_notify.empty:
         log.info('%s: No done devices with incomplete follow-up.', site)
         return None
@@ -158,53 +135,48 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
     except pd.errors.EmptyDataError as e:  # All tagged IDs have no priors
         notif_records = pd.DataFrame()
 
-    STOCK_MESSAGE_EN = ("You have finished 21 days with the Fitbit! It is "
-        "important to complete the following so you can receive your "
-        "payment. 1) Send Fitbit device by mail with the pre-paid envelope."
-        "Be sure to include the charger. 2) complete a questionnaire")
-
-    messages = {
-            'child_en':  STOCK_MESSAGE_EN + ": %s",
-            'parent_en': STOCK_MESSAGE_EN + ". Parent: %s, Youth: %s",
-            'parent_es': STOCK_MESSAGE_EN + ". Parent: %s, Youth: %s",
-    }
+    timestamp_now_mdy = datetime.datetime.now().strftime("%m-%d-%Y %H:%M:%S")
+    timestamp_now_ymd = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     default = {
             'noti_subject_line': 'Please complete post-Fitbit survey!',
-            'noti_status': 1, # 1: Created
             'noti_purpose': 'send_survey_reminder',
-            'noti_timestamp_create': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'noti_status': STATUS_CREATED,
+            'noti_timestamp_create': timestamp_now_ymd,
             'noti_site_name': site,
-            'noti_recipient': 2,  # 1: Parent only, 2: Participant only, 3: Both
-            'noti_send_preferred_time': 1}  # 0: immediate, 1: daily
+            'noti_send_preferred_time': DELIVERY_MORNING}
 
     notified = []
     for pGUID in ids_to_notify:
         notifications = []
+        messages = get_targeted_messages(
+                youth_missing=to_notify.loc[pGUID, 'youth_missing'],
+                parent_missing=to_notify.loc[pGUID, 'parent_missing'],
+                youth_link=to_notify.loc[pGUID, 'youth_link'],
+                parent_link=to_notify.loc[pGUID, 'parent_link'],
+                )
         # For each message, merge defaults and specifics and appends them 
         # to the notifications list
         for recipient, message in messages.items():
-            youth_link = to_notify.loc[pGUID, 'youth_link']
             if recipient.startswith('parent'):
-                deliver_to = 2
-                parent_link = to_notify.loc[pGUID, 'parent_link']
-                filled_message = message % (parent_link, youth_link)
+                deliver_to = RECIPIENT_PARENT
             else:
-                deliver_to = 1
-                filled_message = message % youth_link
+                deliver_to = RECIPIENT_CHILD
 
             specifics = {
                     'record_id': pGUID,
-                    'noti_text': filled_message,
+                    'noti_text': message,
                     'noti_spanish_language': int(recipient.endswith('_es')),
                     'noti_recipient': deliver_to}
             notifications.append(dict(default, **specifics))
 
+        log.debug('%s, %s: %s', site, pGUID, notifications)
+
         notifications_df = pd.DataFrame(notifications).set_index('record_id')
         submission = NotificationSubmission(notif_api, notifications_df, 
-                notif_records)
-        # submission = NotificationSubmission(notif_api, notifications_df, 
-        #         notif_records, dry_run=args.dry_run)
+                notif_records, dry_run=dry_run)
+
+        log.debug("%s, %s: %s", site, pGUID, submission.submission)
 
         # Only send the survey if no survey notification has been sent in 
         # the past 3 days
@@ -249,6 +221,56 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                             "(ValueError: %s)." % (
                                 site, pGUID, dry_run, survey_alerts, e))
     return notified
+
+
+def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link):
+    """
+    Produce different messages based on whose survey is absent.
+    """
+    if youth_missing and parent_missing:
+        message_base = ("You have finished 21 days with the Fitbit! It is "
+            "important to complete the following so you can receive your "
+            "payment. 1) Send Fitbit device by mail with the pre-paid envelope."
+            "Be sure to include the charger. 2) complete a questionnaire")
+        messages = {
+                'child_en':  "%s: %s" % (message_base, youth_link),
+                'parent_en': "%s. Parent: %s, Youth: %s" % (message_base, 
+                    parent_link, youth_link),
+                'parent_es': "%s. Parent: %s, Youth: %s" % (message_base, 
+                    parent_link, youth_link),
+                }
+    elif youth_missing:
+        messages = {
+                'parent_en': ("Thank you for completing your questionnaire! In "
+                    "order to receive your ABCD payment, your child must also "
+                    "complete their questionnaire: %s") % youth_link,
+                'parent_es': ("Thank you for completing your questionnaire! In "
+                    "order to receive your ABCD payment, your child must also "
+                    "complete their questionnaire: %s") % youth_link,
+                'child_en': ("Thank you for finishing your 21 days with the "
+                    "Fitbit! In order to receive your ABCD payment, you must "
+                    "complete the questionnaire: %s" % youth_link),
+                }
+    elif parent_missing:
+        messages = {
+                'child_en': ("Thank you for completing your questionnaire! In "
+                    "order to receive your ABCD payment, your parent "
+                    "must complete their questionnaire. If they haven't "
+                    "received a text with the link to the questionnaire, "
+                    "please contact your ABCD site."),
+                'parent_en': ("Your child has completed the post-Fitbit survey."
+                    "In order to receive your ABCD payment, you must "
+                    "complete the questionnaire too: %s" % parent_link),
+                'parent_es': ("Your child has completed the post-Fitbit survey."
+                    "In order to receive your ABCD payment, you must "
+                    "complete the questionnaire too: %s" % parent_link),
+                }
+    else:
+        raise ValueError('Neither youth nor parent missing; this code path '
+            'should never be executed')
+        return None
+
+    return messages
 
 
 if __name__ == "__main__":
