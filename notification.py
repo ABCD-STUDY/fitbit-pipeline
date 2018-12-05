@@ -108,6 +108,38 @@ class NotificationSubmission(object):
     def abortion_reason(self):
         return self.__abort_reason
 
+    
+    def stop_if_too_early_after(self, timedelta, reference_time=None):
+        """
+        Check if too little time elapsed since a specific timepoint.
+
+        If no timepoint is passed or the timepoint passed is falsey or null, it 
+        will *not* result in an abort.
+        """
+        if not reference_time or pd.isnull(reference_time):
+            return False
+
+        if not (isinstance(timedelta, pd.Timedelta) or 
+                isinstance(timedelta, datetime.timedelta)):
+            raise TypeError("timedelta must be either pandas.Timedelta "
+                            "or datetime.timedelta!")
+
+        if not (isinstance(reference_time, pd.Timestamp) or 
+                isinstance(reference_time, datetime.datetime)):
+            raise TypeError("reference_time must be either pandas.Timestamp "
+                            "or datetime.datetime!")
+
+        time_since = datetime.datetime.now() - reference_time
+        if time_since < timedelta:
+            self.__abort = True
+            self.__abort_reason = ('Aborted in stop_if_too_early_after, '
+                'reference_time: %s, timedelta: %s' % (
+                    reference_time, 
+                    timedelta))
+            return True
+        else:
+            return False
+
 
     def stop_if_early(self, timedelta=None, check_current_purpose_only=False,
             check_created_or_sent_only=False, check_current_recipient_only=False):
