@@ -27,6 +27,7 @@ import requests
 import sys
 from utils import get_redcap_survey_url, apply_redcap_survey_url
 
+
 pd.options.mode.chained_assignment = None
 # If executed from cron, paths are relative to PWD, so anything we need must 
 # have an absolute path
@@ -60,6 +61,10 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
 
     Returns the list of IDs to be alerted.
     """
+    # NOTE: fitc_noti_generated_survey is currently set by the alert-generating 
+    # script, not by the PII, so it must not be regarded as gospel - instead, 
+    # we can offload the work of determining whether a survey notification has 
+    # been sent to NotificationSubmission.stop_if_early.
     rc_fit_datefields = ['fitc_device_dte', 'fitc_noti_generated_survey', 
             'fitc_noti_generated_sync', 'fitc_noti_generated_bat', 
             'fitc_last_dte_ra_contact', 'fitc_last_dte_daic_contact'] 
@@ -88,9 +93,6 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
     else:
         log.info("%s: %d devices with finished collection at site.", site, 
                 done_devices.shape[0])
-    done_devices['time_since_survey_receipt'] = (
-            pd.to_datetime('today') - done_devices['fitc_noti_generated_survey'])
-
 
 
     # Find all participants who are done, but either they or their parents did 
@@ -111,23 +113,29 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
         log.info('%s: No done devices with incomplete follow-up.', site)
         return None
     else:
-        log.info('%s: %d devices with incomplete follow-up.', site, len(ids_to_notify))
+        log.info('%s: %d devices with incomplete follow-up.', site, 
+                len(ids_to_notify))
 
+    # If only a subset of participants should be processed, remove them from 
+    # the notifiable DataFrame now
     if only_subjects:
         ids_to_notify = [i for i in ids_to_notify if i in only_subjects]
         if len(ids_to_notify) == 0:
-            log.info('%s: None of the devices with incomplete follow-up '
-                'are in --subjects; skipping', site)
+            log.info('%s: None of the devices with incomplete follow-up are in'
+                ' --subjects; skipping', site)
+            return None
         else:
             log.info('%s: Trimmed device list to %d, out of %d IDs '
                 'specified in --subjects', site, len(ids_to_notify), 
                 len(only_subjects))
 
+    # For final subset of notifiable participants, retrieve Redcap survey links
     to_notify['youth_link']  = to_notify.apply(apply_redcap_survey_url, 
             axis=1, rc_api=rc_api, survey='fitbit_postassessment_youth')
     to_notify['parent_link'] = to_notify.apply(apply_redcap_survey_url, 
             axis=1, rc_api=rc_api, survey='fitbit_postassessment_parent')
 
+    # Get prior notifications generated for this final subset, too
     try:
         notif_records = notif_api.export_records(records=ids_to_notify, 
                 forms=['notifications'],
@@ -184,32 +192,38 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                 check_current_purpose_only=True, 
                 check_created_or_sent_only=True)
 
-
+        # Move on to next participants if submission is aborted. (If dry_run is 
+        # True, then each participant will always be aborted.)
         if submission.is_aborted:
             log.warning("%s, %s: %d messages would abort. Reason: %s", 
                     site, pGUID, len(notifications), submission.abortion_reason)
             continue
 
-
+        # Warn if the number of associated devices is dangerously low
         number_devices = to_notify.loc[pGUID, 'fitc_number_devices']
         if pd.isnull(number_devices) or (number_devices == 0):
-            log.warning("%s, %s: Generating notification, but no devices associated with account!", 
+            log.warning("%s, %s: Generating notification, but no devices "
+                        "associated with account!", 
                         site, pGUID)
         elif number_devices == 1:
-            log.warning("%s, %s: Only one device associated with account; info loss possible.", 
+            log.warning("%s, %s: Only one device associated with account; "
+                        "info loss possible.", 
                         site, pGUID)
 
 
-        if dry_run:
-            log.warning("%s, %s: Running with --dry-run; %d messages would be sent.", 
-                    site, pGUID, len(notifications))
-            notified.append(pGUID)
-        elif not force_upload:
+        # Final step: either pretend-upload or real-upload.
+        #
+        # NOTE: On the pretend-upload route, pGUID will always be added to 
+        # "successfully notified" return list. On the actual upload route, 
+        # pGUID is only considered successful if the upload doesn't fail.
+        if dry_run or not force_upload:
             log.warning("%s, %s: %d end-survey notification(s) would be sent if"
-                        " script ran with --force", site, pGUID, len(notifications))
+                        " script ran with --force", site, pGUID, 
+                        len(notifications))
             notified.append(pGUID)
         else:
             try:
+                # Write to Notifications Redcap
                 submission.upload(create_redcap_repeating=True)
                 log.info("%s, %s: End-survey notifications (%d versions) " 
                          "uploaded.", site, pGUID, len(notifications))
@@ -300,8 +314,11 @@ if __name__ == "__main__":
                 only_subjects=args.subjects)
 
         if notified:
-            log.info('%s: Processing over, subjects that will or would be notified '
-                    '(modulo dry_run / force setting) are: %s',
-                    site, notified)
+            upload_run = args.force and not args.dry_run
+            action = 'will be' if upload_run else 'would (but will not) be'
+            log.info('%s: Processing over, subjects that %s notified are: %s',
+                    site, action, ", ".join(notified))
         else:
             log.info('%s: Processing over, no subjects to notify', site)
+
+    log.debug('Ended run with invocation: %s', sys.argv)
