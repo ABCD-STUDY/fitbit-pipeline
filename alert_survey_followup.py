@@ -193,6 +193,11 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                 check_current_purpose_only=True, 
                 check_created_or_sent_only=True)
 
+        # Only send the survey if RA has not reached out in past 2 days
+        ra_alerts = submission.stop_if_too_early_after(
+                timedelta=datetime.timedelta(days=2), 
+                reference_time=to_notify.loc[pGUID, 'fitc_last_dte_ra_contact'])
+
         # Move on to next participants if submission is aborted. (If dry_run is 
         # True, then each participant will always be aborted.)
         if submission.is_aborted:
@@ -241,8 +246,10 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                 log.warning("%s, %s: Abort condition triggered. Why? "
                             "Dry run: %s; "
                             "Too early after survey notification: %s. "
+                            "Too early after last human contact: %s. "
                             "(ValueError: %s)." % (
-                                site, pGUID, dry_run, survey_alerts, e))
+                                site, pGUID, dry_run, 
+                                survey_alerts, ra_alerts, e))
     return notified
 
 
