@@ -229,6 +229,14 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                 log.info("%s, %s: End-survey notifications (%d versions) " 
                          "uploaded.", site, pGUID, len(notifications))
                 notified.append(pGUID)
+
+                # Write to main Redcap
+                rc_api.import_records(
+                        [{'id_redcap': pGUID, 
+                          'redcap_event_name': REDCAP_EVENT,
+                          'fitc_noti_generated_survey': timestamp_now_mdy}])
+                log.info("%s, %s: Alert generation timestamp loaded to Redcap.",
+                         site, pGUID)
             except ValueError as e:
                 log.warning("%s, %s: Abort condition triggered. Why? "
                             "Dry run: %s; "
