@@ -10,6 +10,7 @@ load them, process the data, and output it or upload it to Redcap.
 import pycurl, cStringIO, json, sys, re, os, math
 import argparse
 from array import array
+from collections import defaultdict
 from StringIO import StringIO
 from time import sleep
 import pandas as pd
@@ -28,6 +29,8 @@ def parse_args():
     #         help='Score all participants, regardless of site (no Redcap pull')
     parser.add_argument('--input', '-i', default='test_data',
             help='Path to folder with Fitabase exports')
+    parser.add_argument('--assume-merged', action='store_true', 
+            help="Assume files are coming from the equivalent of a Year 2 merge")
     parser.add_argument('--event', default='baseline_year_1_arm_1')
     parser.add_argument('--verbose', '-v')
     return parser.parse_args()
@@ -65,6 +68,7 @@ def redcap_site_subjects(token, event):
     # out = v
     return v
 
+
 def collect_fitabase_files_from_folder(folder):
     fitabase_files = {}
     # for root, dirs, files in os.walk("data_SubStudy"):
@@ -80,6 +84,7 @@ def collect_fitabase_files_from_folder(folder):
                     fitabase_files[pGUID] = []
                 fitabase_files[pGUID].append( { 'filename': os.path.join(root, file), 'pGUID': pGUID, 'processed': False } )
     return fitabase_files
+
 
 # find sets of files for one participant that have the same date range, import those together
 def dateRangeSet( files ):
@@ -108,6 +113,43 @@ def dateRangeSet( files ):
                 l.append(entry)
         daterangesets.append(l)    
     return daterangesets
+
+
+def extract_pGUID(path_string):
+    """
+    Assume that exactly one folder in the path will be a valid NDAR ID.
+    """
+    parts = path_string.split('/')
+    part = [p for p in parts if re.match('^NDAR_INV\w{8}$', p)]
+    if len(part) != 1:
+        raise ValueError('No available NDAR ID in %s!', path_string)
+    else:
+        return part[0]
+
+
+def collect_merged_fitabase_files(root_folder):
+    """
+    Assumes a structure with child nodes of the form $SUBJECT_ID/merged/*.csv.
+
+    Alternative to collect_fitabase_files_from_folder for Year 2 data.
+   """
+
+    out_files = defaultdict(list)
+    for root, dirs, files in os.walk(root_folder):
+        if not root.endswith('merged') or len(dirs) > 0:
+            continue
+        pGUID = extract_pGUID(root)
+        files_with_info = [{
+            'filename': os.path.join(root, f),
+            'pGUID': pGUID,
+            'processed': False} for f in files]
+
+        if len(out_files[pGUID]) > 0:
+            raise KeyError('More than one source directory for %s!' % pGUID)
+
+        out_files[pGUID].extend(files_with_info)
+    return out_files
+
 
 # OK: remove seconds from datetime stamp
 # don't use 1, 2, 3 (sleep) for METs Steps everything
@@ -864,7 +906,10 @@ if __name__ == "__main__":
         site_token = tokens[site]
 
     out = redcap_site_subjects(site_token, args.event)
-    fitabase_files = collect_fitabase_files_from_folder(args.input)
+    if args.assume_merged:
+        fitabase_files = collect_merged_fitabase_files(args.input)
+    else:
+        fitabase_files = collect_fitabase_files_from_folder(args.input)
 
     scores = []
     # walk over the participants for this site
@@ -887,8 +932,16 @@ if __name__ == "__main__":
         date0 = datetime.strptime(date0, '%Y-%m-%d %H:%M')
         #print("date fitbit was given out: " + str(date0))
         
-        # we need to ask what the correct event is for the data
-        for timerange in dateRangeSet(fitabase_files[pGUID]):
+        if args.assume_merged:
+            # we can process everything as the same timerange; timeranges are 
+            # just a list of different file lists, so we can just wrap the 
+            # target in a list
+            iterator = lambda x: [x]
+        else:
+            # we need to ask what the correct event is for the data
+            iterator = dateRangeSet
+
+        for timerange in iterator(fitabase_files[pGUID]):
             timerange_scores = process_timerange(pGUID, timerange, date0)
             if timerange_scores:
                 scores.extend(timerange_scores)
