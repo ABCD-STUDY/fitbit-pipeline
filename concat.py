@@ -99,7 +99,10 @@ def process_concat(folders, timestamp):
         for file in files_to_process:
             file_df = pd.read_csv(os.path.join(folder, file))
             merged_df = file_df.set_index(index_key, drop = False).combine_first(merged_df.set_index(index_key, drop = False))
-        merged_df.to_csv(merged_file_loc, index = False)
+
+        # Don't actually create the file if there is no data
+        if merged_df.empty:
+            merged_df.to_csv(merged_file_loc, index = False)
 
 def log_timestamp(file, start_time):
     """Output the time this processing job began
