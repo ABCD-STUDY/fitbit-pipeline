@@ -139,11 +139,11 @@ if __name__ == "__main__":
         # Here, we'll first create the shared attributes of the message, then 
         # infer the specifics based on the dict key in messages:
         messages = {
-                'parent_en': "%%YOUTH_FIRST_NAME%%'s Fitbit is about to run out of battery. When off, the device cannot collect data. Please ask them to recharge it.",
-                'parent_es': "%%YOUTH_FIRST_NAME%%'s Fitbit is about to run out of battery. When off, the device cannot collect data. Please ask them to recharge it.",
-                'child_en':  "Hi %%YOUTH_FIRST_NAME%%, your Fitbit is about to run out of battery. When off, the device cannot collect data. Please recharge it."}
+                'parent_en': "%YOUTH_FIRST_NAME%'s Fitbit is about to run out of battery. When off, the device cannot collect data. Please ask them to recharge it.",
+                'parent_es': "%YOUTH_FIRST_NAME%'s Fitbit is about to run out of battery. When off, the device cannot collect data. Please ask them to recharge it.",
+                'child_en':  "Hi %YOUTH_FIRST_NAME%, your Fitbit is about to run out of battery. When off, the device cannot collect data. Please recharge it."}
         default = {
-                'noti_subject_line': '%%YOUTH_FIRST_NAME%%: Please charge your Fitbit!',
+                'noti_subject_line': '%YOUTH_FIRST_NAME%: Please charge your Fitbit!',
                 'noti_status': 1,
                 'noti_purpose': 'send_charge_reminder',
                 'noti_timestamp_create': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

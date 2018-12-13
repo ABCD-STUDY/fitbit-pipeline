@@ -250,23 +250,23 @@ def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link
             "payment. 1) Send Fitbit device by mail with the pre-paid envelope."
             "Be sure to include the charger. 2) complete a questionnaire")
         messages = {
-                'child_en':  "%s: %s" % (message_base, youth_link),
-                'parent_en': "%s. Parent: %s Youth: %s" % (message_base, 
+                'child_en':  "{}: {}".format(message_base, youth_link),
+                'parent_en': "{}. Parent: {} Youth: {}".format(message_base, 
                     parent_link, youth_link),
-                'parent_es': "%s. Parent: %s Youth: %s" % (message_base, 
+                'parent_es': "{}. Parent: {} Youth: {}".format(message_base, 
                     parent_link, youth_link),
                 }
     elif youth_missing:
         messages = {
                 'parent_en': ("Thank you for completing your questionnaire! In "
                     "order to receive your ABCD payment, %YOUTH_FIRST_NAME% must also "
-                    "complete their questionnaire: %s") % youth_link,
+                    "complete their questionnaire: {}").format(youth_link),
                 'parent_es': ("Thank you for completing your questionnaire! In "
                     "order to receive your ABCD payment, %YOUTH_FIRST_NAME% must also "
-                    "complete their questionnaire: %s") % youth_link,
+                    "complete their questionnaire: {}").format(youth_link),
                 'child_en': ("%YOUTH_FIRST_NAME%: Thank you for finishing your 21 days with "
                     "Fitbit! In order to receive your ABCD payment, you must "
-                    "complete the questionnaire: %s" % youth_link),
+                    "complete the questionnaire: {}".format(youth_link)),
                 }
     elif parent_missing:
         messages = {
@@ -277,10 +277,10 @@ def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link
                     "questionnaire, please contact your ABCD site."),
                 'parent_en': ("%YOUTH_FIRST_NAME% has completed the post-Fitbit survey."
                     "In order to receive your ABCD payment, you must "
-                    "complete the questionnaire too: %s" % parent_link),
+                    "complete the questionnaire too: {}".format(parent_link)),
                 'parent_es': ("%YOUTH_FIRST_NAME% has completed the post-Fitbit survey."
                     "In order to receive your ABCD payment, you must "
-                    "complete the questionnaire too: %s" % parent_link),
+                    "complete the questionnaire too: {}".format(parent_link)),
                 }
     else:
         raise ValueError('Neither youth nor parent missing; this code path '

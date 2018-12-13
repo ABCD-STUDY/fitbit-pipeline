@@ -191,7 +191,7 @@ for d in participants:
     notifications = []
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': '%%YOUTH_FIRST_NAME%%: ABCD Fitbit survey reminder',
+        'noti_subject_line': '%YOUTH_FIRST_NAME%: ABCD Fitbit survey reminder',
         'noti_text': noti_youth,
         'noti_spanish_language': 0,
         'noti_purpose': 'send_survey_reminder',
@@ -205,7 +205,7 @@ for d in participants:
     })
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit survey reminder for %%YOUTH_FIRST_NAME%%',
+        'noti_subject_line': 'ABCD Fitbit survey reminder for %YOUTH_FIRST_NAME%',
         'noti_text': noti_parent_en,
         'noti_spanish_language': 0,
         'noti_status': 1,
@@ -219,7 +219,7 @@ for d in participants:
     })
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit survey reminder for %%YOUTH_FIRST_NAME%%',
+        'noti_subject_line': 'ABCD Fitbit survey reminder for %YOUTH_FIRST_NAME%',
         'noti_text': noti_parent_es,
         'noti_spanish_language': 1,
         'noti_status': 1,
