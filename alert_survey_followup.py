@@ -348,8 +348,8 @@ if __name__ == "__main__":
         if notified:
             upload_run = args.force and not args.dry_run
             action = 'will be' if upload_run else 'would (but will not) be'
-            log.info('%s: Processing over, subjects that %s notified are: %s',
-                    site, action, ", ".join(notified))
+            log.info('%s: Processing over, %d subjects that %s notified are: %s',
+                    site, len(notified), action, ", ".join(notified))
         else:
             log.info('%s: Processing over, no subjects to notify', site)
 

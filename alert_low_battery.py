@@ -179,6 +179,8 @@ if __name__ == "__main__":
                 notifications.append(dict(default, **specifics))
 
 
+            log.debug('%s, %s: %s', site, pGUID, notifications)
+
             # NotificationSubmission provides three things:
             # 
             # 1. Processing logic (adding redcap_repeat_instrument, etc.)
