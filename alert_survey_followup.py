@@ -46,6 +46,12 @@ def parse_arguments():
             help="Ensure that the NotificationSubmission aborts any upload.")
     parser.add_argument('--subjects', '-s', nargs='+', required=False,
             help="Only send out the notification for enumerated subjects.")
+    parser.add_argument('--first-only', action='store_true',
+            help="Only send notification if no other has been delivered.")
+    parser.add_argument('--zero-devices-allowed', action='store_true',
+            help="Generate notifications even when the recipient has zero "
+            "contactable devices. (The default helps prevent daily regeneration"
+            " of undelivered messages.)")
     parser.add_argument('--force', '-f', action='store_true',
             help="Without --force, no uploads will be attempted.")
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -53,8 +59,42 @@ def parse_arguments():
     return parser.parse_args()
 
 
+# Logical subgroups for further refactoring:
+#
+# 1. Prepare the DataFrame of notifiable subjects: rc_api, site -> to_notify
+#       a. Load the full pool of subjects
+#       b. Cut it down to only notifiable subjects
+#       c. Add columns useful for further processing - *_missing, *_link 
+#       (Wrinkle: some of those columns are needed at the subsetting stage. We 
+#       could say there's a subset-transform-subset cycle, but if there's a 
+#       reason for it to repeat once, why not twice? That might be eschewing 
+#       practicality for elegance.)
+# 2. Create notifications for each subject:
+# (to_notify, notif_records, pGUID, site) -> bool uploaded
+#       a. For re-usability, it would be best to dependency-inject the 
+#       message-creation mechanism, but with what API?
+#           - The logic needs to_notify as input; anything else? (Message 
+#           defaults?)
+#           - Output should be eatable by NotificationSubmission.
+#       b. Creating a re-usable structure for abort checks requires injection, 
+#       too: when passed to_notify and NotificationSubmission instance, the 
+#       class / function can call whatever stop_if_early it wants.
+#
+# In fact, it might make sense to organize each alert as a 
+# NotificationSubmission subclass that overrides particular methods when 
+# needed. For example, the current script might override 
+# NotificationSubmission.upload in order to also push to the main Redcap after 
+# doing the standard thing with super().upload().
+#
+# Similarly, class SiteAction could wrap the standard operations - API 
+# connections, data retrieval, initial subsetting, transform, final subsetting, 
+# and row-wise operation of NotificationSubmission (or subclass thereof).
+#
+# At this point, we might be running into the fundamental theorem of software 
+# engineering: "we can solve any problem by introducting an extra level of 
+# indirection, except for the problem of too many levels of indirection."
 def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False, 
-        only_subjects=None):
+        only_subjects=None, first_only=False, zero_devices_allowed=False):
     """
     Given API objects and parameters, create survey-link messages for the 
     participants who should receive them.
@@ -157,7 +197,6 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
 
     notified = []
     for pGUID in ids_to_notify:
-        notifications = []
         # Get messages dependent on which surveys are missing, filled in with 
         # links for this pGUID
         messages = get_targeted_messages(
@@ -176,7 +215,8 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
 
         # Only send the survey if no survey notification has been sent in 
         # the past 3 days
-        survey_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=3), 
+        survey_cutoff = None if first_only else pd.Timedelta(days=3)
+        survey_alerts = submission.stop_if_early(timedelta=survey_cutoff, 
                 check_current_purpose_only=True, 
                 check_created_or_sent_only=True)
 
@@ -191,13 +231,22 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
             log.warning("%s, %s: %d messages would abort. Reason: %s", 
                     site, pGUID, len(notifications), submission.abortion_reason)
             continue
+        elif first_only and pd.notnull(to_notify.loc[pGUID, 'fitc_noti_generated_survey']):
+            log.warning('%s, %s: First-only participant detected with set generation date %s',
+                    site, pGUID, to_notify.loc[pGUID, 'fitc_noti_generated_survey'].strftime("%Y-%m-%d %H:%M:%S"))
 
         # Warn if the number of associated devices is dangerously low
         number_devices = to_notify.loc[pGUID, 'fitc_number_devices']
         if pd.isnull(number_devices) or (number_devices == 0):
-            log.warning("%s, %s: Generating notification, but no devices "
-                        "associated with account!", 
-                        site, pGUID)
+            if zero_devices_allowed:
+                log.warning("%s, %s: Generating notification, but no devices "
+                            "associated with account!", 
+                            site, pGUID)
+            else:
+                log.error("%s, %s: Eligible for notification, but no devices "
+                            "associated with account! Skipping.", 
+                            site, pGUID)
+                continue
         elif number_devices == 1:
             log.warning("%s, %s: Only one device associated with account; "
                         "info loss possible.", 
@@ -343,7 +392,8 @@ if __name__ == "__main__":
 
         notified = process_site(rc_api, notif_api, site, 
                 dry_run=args.dry_run, force_upload=args.force, 
-                only_subjects=args.subjects)
+                only_subjects=args.subjects, first_only=args.first_only,
+                zero_devices_allowed=args.zero_devices_allowed)
 
         if notified:
             upload_run = args.force and not args.dry_run
