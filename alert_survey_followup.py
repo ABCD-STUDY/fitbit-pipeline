@@ -148,7 +148,7 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
     timestamp_now_ymd = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     default = {
-            'noti_subject_line': 'Please complete post-Fitbit survey!',
+            'noti_subject_line': '%YOUTH_FIRST_NAME%: Please complete post-Fitbit survey!',
             'noti_purpose': 'send_survey_reminder',
             'noti_status': STATUS_CREATED,
             'noti_timestamp_create': timestamp_now_ymd,
@@ -245,40 +245,40 @@ def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link
     Produce different messages based on whose survey is absent.
     """
     if youth_missing and parent_missing:
-        message_base = ("You have finished 21 days with the Fitbit! It is "
+        message_base = ("%YOUTH_FIRST_NAME%: Congratulations, you have finished 21 days with the Fitbit! It is "
             "important to complete the following so you can receive your "
             "payment. 1) Send Fitbit device by mail with the pre-paid envelope."
             "Be sure to include the charger. 2) complete a questionnaire")
         messages = {
                 'child_en':  "%s: %s" % (message_base, youth_link),
-                'parent_en': "%s. Parent: %s, Youth: %s" % (message_base, 
+                'parent_en': "%s. Parent: %s Youth: %s" % (message_base, 
                     parent_link, youth_link),
-                'parent_es': "%s. Parent: %s, Youth: %s" % (message_base, 
+                'parent_es': "%s. Parent: %s Youth: %s" % (message_base, 
                     parent_link, youth_link),
                 }
     elif youth_missing:
         messages = {
                 'parent_en': ("Thank you for completing your questionnaire! In "
-                    "order to receive your ABCD payment, your child must also "
+                    "order to receive your ABCD payment, %YOUTH_FIRST_NAME% must also "
                     "complete their questionnaire: %s") % youth_link,
                 'parent_es': ("Thank you for completing your questionnaire! In "
-                    "order to receive your ABCD payment, your child must also "
+                    "order to receive your ABCD payment, %YOUTH_FIRST_NAME% must also "
                     "complete their questionnaire: %s") % youth_link,
-                'child_en': ("Thank you for finishing your 21 days with the "
+                'child_en': ("%YOUTH_FIRST_NAME%: Thank you for finishing your 21 days with "
                     "Fitbit! In order to receive your ABCD payment, you must "
                     "complete the questionnaire: %s" % youth_link),
                 }
     elif parent_missing:
         messages = {
                 'child_en': ("Thank you for completing your questionnaire! In "
-                    "order to receive your ABCD payment, your parent "
-                    "must complete their questionnaire. If they haven't "
-                    "received a text with the link to the questionnaire, "
-                    "please contact your ABCD site."),
-                'parent_en': ("Your child has completed the post-Fitbi survey."
+                    "order to receive your ABCD payment, your parent/"
+                    "guardian must complete their questionnaire. If they "
+                    "haven't received a text with the link to the "
+                    "questionnaire, please contact your ABCD site."),
+                'parent_en': ("%YOUTH_FIRST_NAME% has completed the post-Fitbit survey."
                     "In order to receive your ABCD payment, you must "
                     "complete the questionnaire too: %s" % parent_link),
-                'parent_es': ("Your child has completed the post-Fitbit survey."
+                'parent_es': ("%YOUTH_FIRST_NAME% has completed the post-Fitbit survey."
                     "In order to receive your ABCD payment, you must "
                     "complete the questionnaire too: %s" % parent_link),
                 }

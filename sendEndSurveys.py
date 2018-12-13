@@ -185,13 +185,13 @@ for d in participants:
     psurvey = buf.getvalue()
     buf.close()
     
-    noti_youth     = "You have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire: %s" % ysurvey
-    noti_parent_en = "You have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire. Parent: %s, Youth: %s" % (psurvey, ysurvey)
-    noti_parent_es = "You have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire. Parent: %s, Youth: %s" % (psurvey, ysurvey)
+    noti_youth     = "Hi %%YOUTH_FIRST_NAME%%, you have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire: %s" % ysurvey
+    noti_parent_en = "Hi %%YOUTH_FIRST_NAME%%, you have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire. Parent: %s, Youth: %s" % (psurvey, ysurvey)
+    noti_parent_es = "Hi %%YOUTH_FIRST_NAME%%, you have finished 21 days with the Fitbit! It is important to complete the following so you can receive your payment. 1) Send Fitbit device by mail with the pre-paid envelope. Be sure to include the charger. 2) complete a questionnaire. Parent: %s, Youth: %s" % (psurvey, ysurvey)
     notifications = []
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit survey reminder',
+        'noti_subject_line': '%%YOUTH_FIRST_NAME%%: ABCD Fitbit survey reminder',
         'noti_text': noti_youth,
         'noti_spanish_language': 0,
         'noti_purpose': 'send_survey_reminder',
@@ -205,7 +205,7 @@ for d in participants:
     })
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit survey reminder',
+        'noti_subject_line': 'ABCD Fitbit survey reminder for %%YOUTH_FIRST_NAME%%',
         'noti_text': noti_parent_en,
         'noti_spanish_language': 0,
         'noti_status': 1,
@@ -219,7 +219,7 @@ for d in participants:
     })
     notifications.append({
         'record_id': pGUID,
-        'noti_subject_line': 'ABCD Fitbit survey reminder',
+        'noti_subject_line': 'ABCD Fitbit survey reminder for %%YOUTH_FIRST_NAME%%',
         'noti_text': noti_parent_es,
         'noti_spanish_language': 1,
         'noti_status': 1,

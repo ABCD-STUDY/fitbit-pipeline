@@ -274,13 +274,13 @@ for d in v:
             next_noti_id = next_noti_id + 1
             print("the next free record id is: %d" % next_noti_id)
             
-            noti_youth     = "Hi, Please sync your fitbit for ABCD! Our records show that you did this %d days ago. Do this every day so we don't lose your data. Do not reply to this message. Contact your site directly if you have questions." % sync_days_ago
-            noti_parent_en = "Hi, Please sync your fitbit for ABCD! Our records show that you did this %d days ago. Do this every day so we don't lose your data. Do not reply to this message. Contact your site directly if you have questions." % sync_days_ago
-            noti_parent_es = "Hi, Please sync your fitbit for ABCD! Our records show that you did this %d days ago. Do this every day so we don't lose your data. Do not reply to this message. Contact your site directly if you have questions." % sync_days_ago
+            noti_youth     = "Hi %%YOUTH_FIRST_NAME%%, please sync your fitbit for ABCD! Our records show that you did this %d days ago. Do this every day so we don't lose your data. Do not reply to this message. Contact your site directly if you have questions." % sync_days_ago
+            noti_parent_en = "%%YOUTH_FIRST_NAME%%: Please sync your fitbit for ABCD! Our records show that you did this %d days ago. Do this every day so we don't lose your data. Do not reply to this message. Contact your site directly if you have questions." % sync_days_ago
+            noti_parent_es = "%%YOUTH_FIRST_NAME%%: Please sync your fitbit for ABCD! Our records show that you did this %d days ago. Do this every day so we don't lose your data. Do not reply to this message. Contact your site directly if you have questions." % sync_days_ago
             notifications = []
             notifications.append({
                 'record_id': pGUID,
-                'noti_subject_line': 'ABCD Fitbit sync reminder',
+                'noti_subject_line': '%%YOUTH_FIRST_NAME%%: ABCD Fitbit sync reminder',
                 'noti_text': noti_youth,
                 'noti_spanish_language': 0,
                 'noti_purpose': 'send_sync_reminder',
@@ -294,7 +294,7 @@ for d in v:
             })
             notifications.append({
                 'record_id': pGUID,
-                'noti_subject_line': 'ABCD Fitbit sync reminder',
+                'noti_subject_line': 'ABCD Fitbit sync reminder for %%YOUTH_FIRST_NAME%%',
                 'noti_text': noti_parent_en,
                 'noti_spanish_language': 0,
                 'noti_status': 1,
@@ -308,7 +308,7 @@ for d in v:
             })
             notifications.append({
                 'record_id': pGUID,
-                'noti_subject_line': 'ABCD Fitbit sync reminder',
+                'noti_subject_line': 'ABCD Fitbit sync reminder for %%YOUTH_FIRST_NAME%%',
                 'noti_text': noti_parent_es,
                 'noti_spanish_language': 1,
                 'noti_status': 1,
