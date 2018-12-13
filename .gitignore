@@ -9,3 +9,4 @@ env/*
 scratch_*
 backup/*
 data/*
+.htaccess
