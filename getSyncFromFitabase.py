@@ -288,7 +288,7 @@ for d in v:
                 'noti_timestamp_create': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'noti_site_name': site,
                 'noti_recipient': 2,
-                'noti_send_preferred_time': 2,
+                'noti_send_preferred_time': 1,
                 'redcap_repeat_instrument': 'notifications',
                 'redcap_repeat_instance': next_noti_id 
             })
