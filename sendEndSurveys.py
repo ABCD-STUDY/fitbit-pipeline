@@ -2,6 +2,16 @@
 #
 # Send the survey's out to participants and parents that have used fitbit devices for 22 days (day 23)
 #
+# Summary of functionality:
+#
+# 1. Based on participants in Fitabase, retrieve from Redcap a list 
+#    of device issuance dates + survey notification timestamps.
+# 2. If (now - fitc_device_dte).days == 23 and no 
+#    fitc_noti_generated_survey, then prepare to send a reminder.
+# 3. Get youth and parent survey links from Redcap.
+# 4. Push notifications to ABCD Notifications Redcap.
+# 5. Push timestamp of notification generation to ABCD Study Redcap 
+#    as fitc_noti_generated_survey.
 
 import pycurl, cStringIO, json, sys, re, time
 import datetime
