@@ -24,7 +24,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
             description="Score all participants for a given site")
     parser.add_argument('site', default='VCU', help='ABCD site abbreviation')
-    parser.add_argument('--upload', '-f', help='Upload result to Redcap')
+    parser.add_argument('--upload', '-f', help='Upload result to Redcap',
+            action="store_true")
     # parser.add_argument('--ignore-site', action='store_true',
     #         help='Score all participants, regardless of site (no Redcap pull')
     parser.add_argument('--input', '-i', default='test_data',
@@ -138,7 +139,12 @@ def collect_merged_fitabase_files(root_folder):
     for root, dirs, files in os.walk(root_folder):
         if not root.endswith('merged') or len(dirs) > 0:
             continue
-        pGUID = extract_pGUID(root)
+        try:
+            pGUID = extract_pGUID(root)
+        except ValueError:
+            print("%s is not a valid pGUID; continuing." % root)
+            continue
+
         files_with_info = [{
             'filename': os.path.join(root, f),
             'pGUID': pGUID,
@@ -296,42 +302,57 @@ def run_pandas_prep(validsteps, date0, min_day=-1, max_day=22):
     else:
         return validsteps
 
+        
+def load_and_normalize(instrument, callback=None, *args, **kwargs):
+    fname = [item['filename'] for item in timerange if instrument in item['filename']][0]
+    # Let the calling scope handle the possible IndexError
+    data = pd.read_csv(fname)
+    if callback:
+        # callback expected to modify data in-place
+        callback(data, *args, **kwargs)
+    return data
+
 
 def get_valid_steps(timerange):
     # import the data
     try:
         heartrate = [item['filename'] for item in timerange if 'heartrate_1min' in item['filename']][0]
+        hrdata = pd.read_csv(heartrate).pipe(prepare_heart_rate)
     except IndexError:
         print("Error: timerange without heartrate_1min " + str([item['filename'] for item in timerange]))
-        return False
+        return None
+
+    try:
+        # TODO: Later, determine if we can forgive the absence of a measure / 
+        # if we can supply an empty DataFrame instead
+        steps = [item['filename'] for item in timerange if 'minuteStepsNarrow' in item['filename']][0]
+        stdata = pd.read_csv(steps)
+        normalizeDate(stdata, 'ActivityMinute') # remove the seconds fom this date
+        # data is in Steps
         
-    hrdata = pd.read_csv(heartrate).pipe(prepare_heart_rate)
-    
-    steps = [item['filename'] for item in timerange if 'minuteStepsNarrow' in item['filename']][0]
-    stdata = pd.read_csv(steps)
-    normalizeDate(stdata, 'ActivityMinute') # remove the seconds fom this date
-    # data is in Steps
-    
-    # metabolic equivalents (METs)
-    mets = [item['filename'] for item in timerange if 'minuteMETsNarrow' in item['filename']][0]
-    medata = pd.read_csv(mets)
-    normalizeDate(medata, 'ActivityMinute')
-    
-    sl = [item['filename'] for item in timerange if 'minuteSleep' in item['filename']][0]
-    sldata = pd.read_csv(sl)
-    # rename the columns for the sleep valuea
-    sldata.rename(columns={'value': 'sleep_value', 'logId': 'sleep_logId' }, inplace=True)
-    normalizeDate(sldata, 'date')
+        # metabolic equivalents (METs)
+        mets = [item['filename'] for item in timerange if 'minuteMETsNarrow' in item['filename']][0]
+        medata = pd.read_csv(mets)
+        normalizeDate(medata, 'ActivityMinute')
+        
+        sl = [item['filename'] for item in timerange if 'minuteSleep' in item['filename']][0]
+        sldata = pd.read_csv(sl)
+        # rename the columns for the sleep valuea
+        sldata.rename(columns={'value': 'sleep_value', 'logId': 'sleep_logId' }, inplace=True)
+        normalizeDate(sldata, 'date')
 
-    # add physical activity minuteIntensitiesNarrow (level 0, 1, 2, 3) -> get per day number in that activity state
-    inte = [item['filename'] for item in timerange if 'minuteIntensitiesNarrow' in item['filename']][0]
-    indata = pd.read_csv(inte)
-    normalizeDate(indata, 'ActivityMinute')
+        # add physical activity minuteIntensitiesNarrow (level 0, 1, 2, 3) -> get per day number in that activity state
+        inte = [item['filename'] for item in timerange if 'minuteIntensitiesNarrow' in item['filename']][0]
+        indata = pd.read_csv(inte)
+        normalizeDate(indata, 'ActivityMinute')
 
-    # add 30second sleep stages (SleepStage,SleepStage30)
-    sleep30 = [item['filename'] for item in timerange if '30secondSleepStages' in item['filename']][0]
-    sleep30data = pd.read_csv(sleep30)
-    sleep30data = normalizeDate30(sleep30data, 'Time')
+        # add 30second sleep stages (SleepStage,SleepStage30)
+        sleep30 = [item['filename'] for item in timerange if '30secondSleepStages' in item['filename']][0]
+        sleep30data = pd.read_csv(sleep30)
+        sleep30data = normalizeDate30(sleep30data, 'Time')
+    except IndexError as e:
+        print("%s: Lacking one of the auxiliary data files." % pGUID)
+        return None
     
     #print("found heartrate file: " + heartrate)
     #print("found steps file: " + steps)
@@ -371,7 +392,16 @@ def process_timerange(pGUID, timerange, date0):
     """
     scores = []
 
-    validsteps = get_valid_steps(timerange).pipe(run_pandas_prep, date0)
+    if len(timerange) == 0:
+        print "Timerange empty for %s" % pGUID
+        return
+
+    try:
+        validsteps = get_valid_steps(timerange).pipe(run_pandas_prep, date0)
+    except AttributeError as e:
+        print "Could not get valid steps for %s" % pGUID
+        return None
+
     # valid steps should filter by sleep value (don't count steps if the sleep value is 0 or above)
     
     #print("merged data for participant: " + pGUID + " is:")
