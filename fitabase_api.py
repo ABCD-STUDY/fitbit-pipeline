@@ -41,19 +41,33 @@ class FitabaseSite(object):
         return devices
 
 
-    def get_tracker_sync_data(self, device_id, format='json', sleep_interval=0):
+    def get_tracker_sync_data(self, device_id, device_name=None, format='json', sleep_interval=0):
         """
         For a single tracker ID, return its last sync and battery level.
+
+        If device_name is given, then it grabs the latest sync for *that* 
+        tracker. (The case where multiple trackers of the same type are 
+        associated with the account is not considered.)
         """
         # => {'SyncDateTracker': iso8601 or None,
         #     'LatestBatteryLevelTracker': 'High', 'Medium', 'Low', 'Empty', or 
         #     None}
         sleep(sleep_interval)
         data = self._make_request('Sync/Latest/%s' % device_id, format="json")
-        keys_of_interest = ['SyncDateTracker', 'LatestBatteryLevelTracker']  
-        #, 'LatestDeviceNameTracker'])
-        data = {k: data[k] for k in keys_of_interest}
+        if device_name:
+            try:
+                data = [d for d in data['Devices'] 
+                        if d.get('DeviceName') == device_name][0]
+                # Create keys with same naming as top-level keys
+                data['LatestBatteryLevelTracker'] = data.pop('BatteryLevel')
+                data['SyncDateTracker'] = data.pop('LastSync')
 
+            except IndexError:
+                data = {'SyncDateTracker': None, 'LatestBatteryLevelTracker': None}
+
+        # Only subset to expected keys
+        keys_of_interest = ['SyncDateTracker', 'LatestBatteryLevelTracker']  
+        data = {k: data[k] for k in keys_of_interest}
         if data['SyncDateTracker']:
             data['SyncDateTracker'] = dateutil.parser.parse(data['SyncDateTracker'])
 

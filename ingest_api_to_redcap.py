@@ -57,7 +57,8 @@ def load_fitabase_data(api, pull_sync=False, name_subset=None):
     if name_subset is not None:
         fit_devices = fit_devices.loc[fit_devices.index.isin(name_subset)]
     if pull_sync and not fit_devices.empty:
-        return fit_devices.join(api.get_all_tracker_sync_data(fit_devices))
+        return fit_devices.join(api.get_all_tracker_sync_data(fit_devices,
+            device_name='Charge 2'))
     else:
         return fit_devices
 
@@ -159,7 +160,7 @@ if __name__ == "__main__":
                     join.index.get_level_values('id_redcap').tolist())
             join = join.loc[:, ['fitc_fitabase_exists']]
         if args.dry_run:
-            print(join)
+            print(join.to_csv(sys.stdout))
         else:
             try:
                 out = rc_api.import_records(join, overwrite='overwrite', return_content='ids')
