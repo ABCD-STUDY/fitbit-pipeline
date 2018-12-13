@@ -1,8 +1,10 @@
+ipdb
 jinja2
 matplotlib
 line_profiler
 pandas>0.20
 prettypandas
+pudb
 pycap
 pycurl
 requests
