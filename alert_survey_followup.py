@@ -14,7 +14,6 @@ For more details, run `./alert_survey_followup.py -h`.
 
 import argparse
 import datetime
-from fitabase_api import FitabaseSite
 import json
 import logging as log
 from notification import (NotificationSubmission, RECIPIENT_PARENT, 

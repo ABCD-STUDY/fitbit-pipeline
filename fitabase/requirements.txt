@@ -1,0 +1,5 @@
+pandas
+pycurl
+requests
+pytest
+vcr

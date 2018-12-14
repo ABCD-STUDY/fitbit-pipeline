@@ -18,8 +18,8 @@ with open('fitabase_tokens.json') as data_file:
 
 @pytest.fixture
 def api(test_token=TEST_TOKEN):
-    from fitabase_api import FitabaseSite
-    return FitabaseSite(token=test_token)._make_request
+    from fitabase import Project
+    return Project(token=test_token)._make_request
 
 @pytest.fixture
 def device_id():

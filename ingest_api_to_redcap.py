@@ -15,7 +15,7 @@ Current variables of interest:
 """
 
 import argparse
-from fitabase_api import FitabaseSite
+import fitabase
 import json
 import logging as log
 from notification import NotificationSubmission
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         except KeyError:
             log.error('%s: Fitabase token ID is not available!', site)
             continue
-        fit_api = FitabaseSite(fit_token)
+        fit_api = fitabase.Project(fit_token)
         # TODO: Maybe subset based on available Redcap IDs? If ID is absent in 
         # Redcap, that maybe warrants a warning, but the data definitely won't 
         # be useful...

@@ -40,7 +40,6 @@ import os
 import pandas as pd
 import redcap as rc
 import requests
-from fitabase_api import FitabaseSite
 
 pd.options.mode.chained_assignment = None
 # If executed from cron, paths are relative to PWD, so anything we need must 

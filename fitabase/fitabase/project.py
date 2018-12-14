@@ -11,9 +11,9 @@ except ImportError:
     from urllib import urlencode
 from zipfile import ZipFile
 
-class FitabaseSite(object):
+class Project(object):
     """
-    FitabaseSite exposes the API actions for a specific Fitabase profile.
+    Project exposes the API actions for a specific Fitabase profile.
     """
     # FIXME: Need to read up on resource freeing with StringIO + ZipFile etc., 
     # and figure out how that works with resources that are returned to an 
@@ -77,7 +77,7 @@ class FitabaseSite(object):
             return pd.Series(data)
 
 
-    def get_all_tracker_sync_data(self, device_ids=None, sleep_interval=0.1):
+    def get_all_tracker_sync_data(self, device_ids=None, device_name=None, sleep_interval=0.1):
         """
         For all device IDs passed in the DataFrame, retrieve the last sync time 
         and battery level and return in an equally-indexed DataFrame.
@@ -96,6 +96,7 @@ class FitabaseSite(object):
             device_ids = self.get_device_ids(format='df')
         return device_ids['ProfileId'].apply(
                 self.get_tracker_sync_data,
+                device_name=device_name,
                 sleep_interval=sleep_interval,
                 format='df')
 

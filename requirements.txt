@@ -1,3 +1,4 @@
+./fitabase
 ipdb
 jinja2
 matplotlib

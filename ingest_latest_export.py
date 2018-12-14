@@ -7,7 +7,7 @@ By default, export is into SITE/SUBJECT/CURRENT_DATE; this can be modified with
 """
 import argparse
 import datetime
-from fitabase_api import FitabaseSite
+import fitabase
 import itertools
 import json
 import logging as log
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         except KeyError:
             log.error('%s: Fitabase token ID is not available!', site)
             continue
-        fit_api = FitabaseSite(fit_token)
+        fit_api = fitabase.Project(fit_token)
         last_batch = fit_api.get_last_batch_export_info()
 
         if args.batch_name and last_batch.get('Name') != args.batch_name:
