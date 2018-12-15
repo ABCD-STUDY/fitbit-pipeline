@@ -124,7 +124,7 @@ if __name__ == "__main__":
         more_than_6hr_ago = active_devices['time_since_sync'] > pd.Timedelta(hours=6)
         more_than_1d_ago  = active_devices['time_since_sync'] > pd.Timedelta(days=1)
         devices_to_notify = active_devices.loc[
-                (empty_idx & more_than_6hr_ago) | (low_idx & more_than_1d_ago)]
+                (empty_idx) | (low_idx & more_than_1d_ago)]
         # TODO: Many of these conditions could be expressed as a 
         # pd.DataFrame.query, which means that they could live in a config file 
         # somewhere
