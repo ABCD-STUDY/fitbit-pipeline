@@ -163,7 +163,10 @@ class NotificationSubmission(object):
         # Now, we chip away at the previous_notifications subset to see if, 
         # after subsetting for the timedelta and purpose, any violations remain
         try:
-            notifications_subject = previous_notifications.loc[self.record_id, :]
+            # Passing in the single record ID in a list guarantees that 
+            # the return will be a DataFrame, even if only one row is 
+            # retrieved (in which case the default is Series)
+            notifications_subject = previous_notifications.loc[[self.record_id], :]
         except KeyError:
             return False
 
