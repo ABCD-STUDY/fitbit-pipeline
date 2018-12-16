@@ -241,7 +241,7 @@ def upload_scores_to_redcap(scores_combined, site_token):
         sleep(0.02)
         
 
-def prepare_heart_rate(hrdata):
+def prepare_heart_rate(hrdata, pGUID=None, site=None):
     # normalize the Time entry to remove seconds
     normalizeDate(hrdata, 'Time')
 
@@ -313,11 +313,11 @@ def load_and_normalize(instrument, callback=None, *args, **kwargs):
     return data
 
 
-def get_valid_steps(timerange):
+def get_valid_steps(timerange, pGUID=None, site=None):
     # import the data
     try:
         heartrate = [item['filename'] for item in timerange if 'heartrate_1min' in item['filename']][0]
-        hrdata = pd.read_csv(heartrate).pipe(prepare_heart_rate)
+        hrdata = pd.read_csv(heartrate).pipe(prepare_heart_rate, pGUID=pGUID, site=site)
     except IndexError:
         print("Error: timerange without heartrate_1min " + str([item['filename'] for item in timerange]))
         return None
@@ -397,7 +397,7 @@ def process_timerange(pGUID, timerange, date0):
         return
 
     try:
-        validsteps = get_valid_steps(timerange).pipe(run_pandas_prep, date0)
+        validsteps = get_valid_steps(timerange, pGUID, site).pipe(run_pandas_prep, date0)
     except AttributeError as e:
         print "Could not get valid steps for %s" % pGUID
         return None
