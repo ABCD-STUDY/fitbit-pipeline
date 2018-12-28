@@ -373,7 +373,7 @@ if __name__ == "__main__":
     args = parse_arguments()
     if args.verbose:
         log.getLogger().setLevel(log.DEBUG)
-    log.debug('Started run with invocation: %s', sys.argv)
+    log.info('Started run with invocation: %s', sys.argv)
 
     with open('/var/www/html/code/php/tokens.json') as data_file:
         redcap_tokens = json.load(data_file)
@@ -402,4 +402,4 @@ if __name__ == "__main__":
         else:
             log.info('%s: Processing over, no subjects to notify', site)
 
-    log.debug('Ended run with invocation: %s', sys.argv)
+    log.info('Ended run with invocation: %s', sys.argv)

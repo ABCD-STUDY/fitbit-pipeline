@@ -171,4 +171,4 @@ if __name__ == "__main__":
             except requests.RequestException as e:
                 # TODO: If exception happens, maybe retry record-by-record?
                 log.exception('%s: Error occurred during upload of %d records.', site, join.shape[0])
-    log.info('Finished run with invocation: %s', sys.argv)
+    log.info('Ended run with invocation: %s', sys.argv)

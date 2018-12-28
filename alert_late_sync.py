@@ -12,6 +12,7 @@ import os
 import pandas as pd
 import redcap as rc
 import requests
+import sys
 
 pd.options.mode.chained_assignment = None
 # If executed from cron, paths are relative to PWD, so anything we need must 
@@ -49,6 +50,8 @@ if __name__ == "__main__":
     with open(os.path.join(CURRENT_DIR, 'notifications_token.json')) as token_file:
         notif_token = json.load(token_file).get('token')
         notif_api = rc.Project(REDCAP_URL, notif_token)
+
+    log.info('Started run with invocation: %s', sys.argv)
 
     # No need to keep the call one site at a time - we can iterate through all
     for site in args.site:
@@ -183,3 +186,5 @@ if __name__ == "__main__":
                                 "(ValueError: %s)." % (
                                     site, pGUID, args.dry_run, specific_alerts, 
                                     any_alerts, e))
+
+    log.info('Ended run with invocation: %s', sys.argv)

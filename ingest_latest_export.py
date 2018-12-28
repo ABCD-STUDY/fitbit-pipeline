@@ -14,6 +14,7 @@ import logging as log
 import os
 import pandas as pd
 import re
+import sys
 import zipfile
 
 # If executed from cron, paths are relative to PWD, so anything we need must 
@@ -101,6 +102,7 @@ if __name__ == "__main__":
         fitabase_tokens = json.load(data_file).get('tokens')
         fitabase_tokens = pd.DataFrame.from_records(fitabase_tokens, index='name')
 
+    log.info('Started run with invocation: %s', sys.argv)
     for site in args.site:
         try:
             fit_token = fitabase_tokens.loc[site, 'token']
@@ -172,3 +174,4 @@ if __name__ == "__main__":
                 log.info('%s, %s: Extracted files into per-subject folders in '
                          '%s.',
                          site, last_id, target_dir)
+    log.info('Ended run with invocation: %s', sys.argv)
