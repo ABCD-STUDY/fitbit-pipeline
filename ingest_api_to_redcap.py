@@ -70,11 +70,11 @@ if __name__ == "__main__":
     if args.verbose:
         log.getLogger().setLevel(log.DEBUG)
 
-    with open(os.path.join(CURRENT_DIR, 'fitabase_tokens.json')) as data_file:
+    with open(os.path.join("/var/www/secure/", 'fitabase_tokens.json')) as data_file:
         fitabase_tokens = json.load(data_file).get('tokens')
         fitabase_tokens = pd.DataFrame.from_records(fitabase_tokens, index='name')
         # TODO: Could pass the list of keys as site choices for parse_arguments
-    with open(os.path.join(CURRENT_DIR, '../../code/php/tokens.json')) as data_file:
+    with open(os.path.join(CURRENT_DIR, '../../../secure/tokens.json')) as data_file:
         redcap_tokens = json.load(data_file)
         redcap_tokens = pd.DataFrame.from_dict(redcap_tokens, orient='index', columns=['token'])
 

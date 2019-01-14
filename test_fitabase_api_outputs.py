@@ -11,7 +11,7 @@ import pytest
 # TODO: Should use tdda/great_expectations to test shape AND content of API 
 # returns
 # with open(os.path.join(os.path.dirname(__file__), '../fitabase_tokens.json')) as data_file:
-with open('fitabase_tokens.json') as data_file:
+with open('/var/www/secure/fitabase_tokens.json') as data_file:
     fitabase_tokens = json.load(data_file).get('tokens')
     fitabase_tokens = pd.DataFrame.from_records(fitabase_tokens, index='name')
     TEST_TOKEN = fitabase_tokens.loc['UCSD', 'token']

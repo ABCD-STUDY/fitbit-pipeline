@@ -18,7 +18,7 @@ import datetime
 from StringIO import StringIO
 
 
-with open('fitabase_tokens.json') as data_file:
+with open('/var/www/secure/fitabase_tokens.json') as data_file:
     ftokens = json.load(data_file)
 
 with open('notifications_token.json') as token_file:
@@ -63,7 +63,7 @@ buf.close()
 # [{"ProfileId": "a99f06d2-4264-49a1-80d5-3b794a507d96", "Name": "Test 9/25", "CreatedDate": "2018-09-25T19:47:50.017"}]
 
 # what is the list of participants that have a device right now? fitc_device_dte
-with open('../../code/php/tokens.json') as data_file:
+with open('../../../secure/tokens.json') as data_file:
     tokens = json.load(data_file)
 
 buf = cStringIO.StringIO()

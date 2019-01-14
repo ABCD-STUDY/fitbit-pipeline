@@ -72,7 +72,7 @@ if __name__ == "__main__":
     if args.verbose:
         log.getLogger().setLevel(log.DEBUG)
 
-    with open(os.path.join(CURRENT_DIR, '../../code/php/tokens.json')) as data_file:
+    with open(os.path.join(CURRENT_DIR, '../../../secure/tokens.json')) as data_file:
         redcap_tokens = json.load(data_file)
         redcap_tokens = pd.DataFrame.from_dict(redcap_tokens, orient='index', columns=['token'])
 

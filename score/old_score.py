@@ -931,7 +931,7 @@ def process_timerange(pGUID, timerange, date0):
 if __name__ == "__main__":
     args = parse_args()
     site = args.site
-    with open('/var/www/html/code/php/tokens.json') as data_file:
+    with open('/var/www/secure/tokens.json') as data_file:
         tokens = json.load(data_file)
         site_token = tokens[site]
 
