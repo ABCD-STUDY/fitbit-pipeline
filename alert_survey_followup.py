@@ -385,21 +385,26 @@ if __name__ == "__main__":
 
     # No need to keep the call one site at a time - we can iterate through all
     for site in args.site:
-        # Get device list from main Redcap project
-        rc_token = redcap_tokens.loc[site, 'token']
-        rc_api = rc.Project(REDCAP_URL, rc_token)
+        try:
+            # Get device list from main Redcap project
+            rc_token = redcap_tokens.loc[site, 'token']
+            rc_api = rc.Project(REDCAP_URL, rc_token)
 
-        notified = process_site(rc_api, notif_api, site, 
-                dry_run=args.dry_run, force_upload=args.force, 
-                only_subjects=args.subjects, first_only=args.first_only,
-                zero_devices_allowed=args.zero_devices_allowed)
+            notified = process_site(rc_api, notif_api, site, 
+                    dry_run=args.dry_run, force_upload=args.force, 
+                    only_subjects=args.subjects, first_only=args.first_only,
+                    zero_devices_allowed=args.zero_devices_allowed)
 
-        if notified:
-            upload_run = args.force and not args.dry_run
-            action = 'will be' if upload_run else 'would (but will not) be'
-            log.info('%s: Processing over, %d subjects that %s notified are: %s',
-                    site, len(notified), action, ", ".join(notified))
-        else:
-            log.info('%s: Processing over, no subjects to notify', site)
+            if notified:
+                upload_run = args.force and not args.dry_run
+                action = 'will be' if upload_run else 'would (but will not) be'
+                log.info('%s: Processing over, %d subjects that %s notified are: %s',
+                        site, len(notified), action, ", ".join(notified))
+            else:
+                log.info('%s: Processing over, no subjects to notify', site)
+
+        except Exception as e:
+            log.exception("%s: Uncaught exception occurred.", site)
+            continue
 
     log.info('Ended run with invocation: %s', sys.argv)

@@ -82,93 +82,99 @@ if __name__ == "__main__":
     for site in args.site:
         log.info("%s: Started processing", site)
 
-        # Get device list from main Redcap project
         try:
-            rc_token = redcap_tokens.loc[site, 'token']
-        except KeyError:
-            log.error('%s: Redcap token ID is not available!', site)
-            continue
-        rc_api = rc.Project(REDCAP_URL, rc_token)
-        rc_fit_fields = ['fitc_device_dte']
-        rc_devices = rc_api.export_records(
-                fields=rc_fit_fields + [rc_api.def_field],
-                events=[REDCAP_EVENT],  
-                export_data_access_groups=True,
-                df_kwargs={
-                    'parse_dates': rc_fit_fields,
-                    # Only setting record id field as index here, instead of it 
-                    # *and* redcap_event_name, in order to facilitate easy join 
-                    # with the Fitabase DataFrame
-                    'index_col': [rc_api.def_field]},
-                format='df')
-
-        if not args.all:
-            rc_devices.dropna(subset=['fitc_device_dte'], inplace=True)
-            if rc_devices.empty:
-                log.info("%s: No active devices at site", site)
-                continue
-        rc_names = rc_devices.index.get_level_values('id_redcap').tolist()
-
-        # Get device list from Fitabase
-        try:
-            fit_token = fitabase_tokens.loc[site, 'token']
-        except KeyError:
-            log.error('%s: Fitabase token ID is not available!', site)
-            continue
-        fit_api = fitabase.Project(fit_token)
-        # TODO: Maybe subset based on available Redcap IDs? If ID is absent in 
-        # Redcap, that maybe warrants a warning, but the data definitely won't 
-        # be useful...
-        fit_data = load_fitabase_data(fit_api, pull_sync=True, 
-                name_subset=rc_names)
-
-        # Now, transform the Fitabase data into columns. Matches almost 1-to-1:
-        join = rc_devices.join(fit_data).rename(columns={
-            'SyncDateTracker': 'fitc_last_sync_date',
-            'LatestBatteryLevelTracker': 'fitc_last_battery_level',
-            'ProfileId': 'fitc_fitabase_profile_id',
-            })
-
-        # Note the .astype(int) - PyCAP apparently doesn't know to convert 
-        # boolean pandas columns, and instead uploads strings, so we have to do 
-        # this for it
-        join.loc[:, 'fitc_fitabase_exists'] = pd.notnull(join['fitc_fitabase_profile_id']).astype(int)
-
-        # For Redcap upload to work, redcap_event_name must be in the index
-        join = join.reset_index().set_index(['id_redcap', 'redcap_event_name'])
-
-        # The try block is necessary because in some cases, there won't be any 
-        # Fitabase matches - thus no last_sync_date or last_battery_level. (We 
-        # could explicitly test for them, but catching KeyError should be 
-        # sufficiently specific.)
-        try:
-            # It's insane, but ABCD Redcap follows MDY convention
-            # Also, the field is unvalidated text, so NaT wreaks havoc
-            join['fitc_last_sync_date'] = (join['fitc_last_sync_date']
-                    .dt.strftime('%m-%d-%Y %H:%M:%S')
-                    .astype(str)
-                    .replace('NaT', ''))
-            join['fitc_last_battery_level'] = join['fitc_last_battery_level'].str.upper()
-
-            # Only keep the columns of interest
-            # (This removes both original Fitabase columns that we have no use for, 
-            # and original Redcap columns that we don't need to rewrite.)
-            join = join.loc[:, ['fitc_last_sync_date', 'fitc_last_battery_level', 
-                'fitc_fitabase_exists', 'fitc_fitabase_profile_id']]
-        except KeyError as e:
-            log.warn('%s: No corresponding Fitabase entries for any of %s.', site,
-                    join.index.get_level_values('id_redcap').tolist())
-            join = join.loc[:, ['fitc_fitabase_exists']]
-        if args.dry_run:
-            print(join.to_csv(sys.stdout))
-        else:
+            # Get device list from main Redcap project
             try:
-                out = rc_api.import_records(join, overwrite='overwrite', return_content='ids')
-                # TODO: Maybe compare out (which is a list of IDs) with 
-                # join.index.get_level_values('id_redcap') to see if any were 
-                # omitted?
-                log.info('%s: Successfully updated Redcap records for %s', site, out)
-            except requests.RequestException as e:
-                # TODO: If exception happens, maybe retry record-by-record?
-                log.exception('%s: Error occurred during upload of %d records.', site, join.shape[0])
+                rc_token = redcap_tokens.loc[site, 'token']
+            except KeyError:
+                log.error('%s: Redcap token ID is not available!', site)
+                continue
+            rc_api = rc.Project(REDCAP_URL, rc_token)
+            rc_fit_fields = ['fitc_device_dte']
+            rc_devices = rc_api.export_records(
+                    fields=rc_fit_fields + [rc_api.def_field],
+                    events=[REDCAP_EVENT],  
+                    export_data_access_groups=True,
+                    df_kwargs={
+                        'parse_dates': rc_fit_fields,
+                        # Only setting record id field as index here, instead of it 
+                        # *and* redcap_event_name, in order to facilitate easy join 
+                        # with the Fitabase DataFrame
+                        'index_col': [rc_api.def_field]},
+                    format='df')
+
+            if not args.all:
+                rc_devices.dropna(subset=['fitc_device_dte'], inplace=True)
+                if rc_devices.empty:
+                    log.info("%s: No active devices at site", site)
+                    continue
+            rc_names = rc_devices.index.get_level_values('id_redcap').tolist()
+
+            # Get device list from Fitabase
+            try:
+                fit_token = fitabase_tokens.loc[site, 'token']
+            except KeyError:
+                log.error('%s: Fitabase token ID is not available!', site)
+                continue
+            fit_api = fitabase.Project(fit_token)
+            # TODO: Maybe subset based on available Redcap IDs? If ID is absent in 
+            # Redcap, that maybe warrants a warning, but the data definitely won't 
+            # be useful...
+            fit_data = load_fitabase_data(fit_api, pull_sync=True, 
+                    name_subset=rc_names)
+
+            # Now, transform the Fitabase data into columns. Matches almost 1-to-1:
+            join = rc_devices.join(fit_data).rename(columns={
+                'SyncDateTracker': 'fitc_last_sync_date',
+                'LatestBatteryLevelTracker': 'fitc_last_battery_level',
+                'ProfileId': 'fitc_fitabase_profile_id',
+                })
+
+            # Note the .astype(int) - PyCAP apparently doesn't know to convert 
+            # boolean pandas columns, and instead uploads strings, so we have to do 
+            # this for it
+            join.loc[:, 'fitc_fitabase_exists'] = pd.notnull(join['fitc_fitabase_profile_id']).astype(int)
+
+            # For Redcap upload to work, redcap_event_name must be in the index
+            join = join.reset_index().set_index(['id_redcap', 'redcap_event_name'])
+
+            # The try block is necessary because in some cases, there won't be any 
+            # Fitabase matches - thus no last_sync_date or last_battery_level. (We 
+            # could explicitly test for them, but catching KeyError should be 
+            # sufficiently specific.)
+            try:
+                # It's insane, but ABCD Redcap follows MDY convention
+                # Also, the field is unvalidated text, so NaT wreaks havoc
+                join['fitc_last_sync_date'] = (join['fitc_last_sync_date']
+                        .dt.strftime('%m-%d-%Y %H:%M:%S')
+                        .astype(str)
+                        .replace('NaT', ''))
+                join['fitc_last_battery_level'] = join['fitc_last_battery_level'].str.upper()
+
+                # Only keep the columns of interest
+                # (This removes both original Fitabase columns that we have no use for, 
+                # and original Redcap columns that we don't need to rewrite.)
+                join = join.loc[:, ['fitc_last_sync_date', 'fitc_last_battery_level', 
+                    'fitc_fitabase_exists', 'fitc_fitabase_profile_id']]
+            except KeyError as e:
+                log.warn('%s: No corresponding Fitabase entries for any of %s.', site,
+                        join.index.get_level_values('id_redcap').tolist())
+                join = join.loc[:, ['fitc_fitabase_exists']]
+            if args.dry_run:
+                print(join.to_csv(sys.stdout))
+            else:
+                try:
+                    out = rc_api.import_records(join, overwrite='overwrite', return_content='ids')
+                    # TODO: Maybe compare out (which is a list of IDs) with 
+                    # join.index.get_level_values('id_redcap') to see if any were 
+                    # omitted?
+                    log.info('%s: Successfully updated Redcap records for %s', site, out)
+                except requests.RequestException as e:
+                    # TODO: If exception happens, maybe retry record-by-record?
+                    log.exception('%s: Error occurred during upload of %d records.', site, join.shape[0])
+
+        except Exception as e:
+            log.exception("%s: Uncaught exception occurred.", site)
+            continue
+
     log.info('Ended run with invocation: %s', sys.argv)

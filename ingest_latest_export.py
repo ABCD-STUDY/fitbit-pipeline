@@ -105,73 +105,79 @@ if __name__ == "__main__":
     log.info('Started run with invocation: %s', sys.argv)
     for site in args.site:
         try:
-            fit_token = fitabase_tokens.loc[site, 'token']
-        except KeyError:
-            log.error('%s: Fitabase token ID is not available!', site)
-            continue
-        fit_api = fitabase.Project(fit_token)
-        last_batch = fit_api.get_last_batch_export_info()
+            try:
+                fit_token = fitabase_tokens.loc[site, 'token']
+            except KeyError:
+                log.error('%s: Fitabase token ID is not available!', site)
+                continue
+            fit_api = fitabase.Project(fit_token)
+            last_batch = fit_api.get_last_batch_export_info()
 
-        if args.batch_name and last_batch.get('Name') != args.batch_name:
-            log.error('%s: Last available batch export is named %s, but '
-                      'parameters specify that its name must be %s; skipping.',
-                      site, last_batch.get('Name'), args.batch_name)
+            if args.batch_name and last_batch.get('Name') != args.batch_name:
+                log.error('%s: Last available batch export is named %s, but '
+                          'parameters specify that its name must be %s; skipping.',
+                          site, last_batch.get('Name'), args.batch_name)
 
-        try:
-            last_id = last_batch.get('DownloadDataBatchId')
-        except (AttributeError, IOError) as e:
-            log.error('%s: Last batch ID not available.', site)
-            continue
+            try:
+                last_id = last_batch.get('DownloadDataBatchId')
+            except (AttributeError, IOError) as e:
+                log.error('%s: Last batch ID not available.', site)
+                continue
 
-        if args.no_download:
-            log.info('%s, %s: Not downloading', site, last_id)
-            continue
+            if args.no_download:
+                log.info('%s, %s: Not downloading', site, last_id)
+                continue
 
-        # Determine what the base directory is and create it if needed
-        if args.target_dir:
-            target_dir = ensure_directory(args.target_dir)
-        else:
-            target_dir = ensure_directory(args.root_dir, site)
-
-        ymd_string = datetime.datetime.now().strftime('%Y%m%d')  # .utcnow()?
-
-        # Save the whole zip file if required...
-        if args.no_extract:
-            site_zip_stream = fit_api.export_batch(last_id)
-
-            file_name = "%s_%s.zip" % (ymd_string, last_id[:6])
-            target_file = os.path.join(target_dir, file_name)
-            with file(target_file, mode='wb') as zf:
-                zf.write(site_zip_stream.read())
-
-            log.info('%s, %s: Saving zip file without extraction to %s',
-                     site, last_id, target_file)
-            continue
-
-        # ...otherwise, extracting files one way or another:
-        with fit_api.get_batch_export_zipfile(last_id) as site_zip:
-            if args.no_subject_subdirs:
-                target_dir = ensure_directory(target_dir, ymd_string)
-                site_zip.extractall(path=target_dir)
-                log.info('%s, %s: Extracting all files as-is to %s', 
-                        site, last_id, target_dir)
+            # Determine what the base directory is and create it if needed
+            if args.target_dir:
+                target_dir = ensure_directory(args.target_dir)
             else:
-                # Group files by participant, then extract them into subdirs
-                all_files = site_zip.namelist()
-                files_by_dir = group_files_into_matched_directories(all_files)
-                for subdir, files in files_by_dir:
-                    # If subject ID did not match the pattern, then the file 
-                    # was not grouped:
-                    if subdir is not None:
-                        subject_dir = ensure_directory(target_dir, *subdir)
-                    else:
-                        subject_dir = target_dir
+                target_dir = ensure_directory(args.root_dir, site)
 
-                    # Extract all files in the group to the designated subdir
-                    for f in files:
-                        site_zip.extract(f, path=subject_dir)
+            ymd_string = datetime.datetime.now().strftime('%Y%m%d')  # .utcnow()?
 
-                log.info('%s, %s: Extracted files into per-subject folders in '
-                         '%s.',
-                         site, last_id, target_dir)
+            # Save the whole zip file if required...
+            if args.no_extract:
+                site_zip_stream = fit_api.export_batch(last_id)
+
+                file_name = "%s_%s.zip" % (ymd_string, last_id[:6])
+                target_file = os.path.join(target_dir, file_name)
+                with file(target_file, mode='wb') as zf:
+                    zf.write(site_zip_stream.read())
+
+                log.info('%s, %s: Saving zip file without extraction to %s',
+                         site, last_id, target_file)
+                continue
+
+            # ...otherwise, extracting files one way or another:
+            with fit_api.get_batch_export_zipfile(last_id) as site_zip:
+                if args.no_subject_subdirs:
+                    target_dir = ensure_directory(target_dir, ymd_string)
+                    site_zip.extractall(path=target_dir)
+                    log.info('%s, %s: Extracting all files as-is to %s', 
+                            site, last_id, target_dir)
+                else:
+                    # Group files by participant, then extract them into subdirs
+                    all_files = site_zip.namelist()
+                    files_by_dir = group_files_into_matched_directories(all_files)
+                    for subdir, files in files_by_dir:
+                        # If subject ID did not match the pattern, then the file 
+                        # was not grouped:
+                        if subdir is not None:
+                            subject_dir = ensure_directory(target_dir, *subdir)
+                        else:
+                            subject_dir = target_dir
+
+                        # Extract all files in the group to the designated subdir
+                        for f in files:
+                            site_zip.extract(f, path=subject_dir)
+
+                    log.info('%s, %s: Extracted files into per-subject folders in '
+                             '%s.',
+                             site, last_id, target_dir)
+
+        except Exception as e:
+            log.exception("%s: Uncaught exception occurred.", site)
+            continue
+
     log.info('Ended run with invocation: %s', sys.argv)
