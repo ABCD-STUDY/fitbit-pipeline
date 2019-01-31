@@ -174,7 +174,8 @@ if __name__ == "__main__":
                     log.exception('%s: Error occurred during upload of %d records.', site, join.shape[0])
 
         except Exception as e:
-            log.exception("%s: Uncaught exception occurred.", site)
+            # log.exception("%s: Uncaught exception occurred.", site)
+            log.critical("%s: Uncaught exception occurred.", site, exc_info=True)
             continue
 
     log.info('Ended run with invocation: %s', sys.argv)

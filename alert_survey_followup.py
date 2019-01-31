@@ -242,7 +242,7 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                             "associated with account!", 
                             site, pGUID)
             else:
-                log.error("%s, %s: Eligible for notification, but no devices "
+                log.warning("%s, %s: Eligible for notification, but no devices "
                             "associated with account! Skipping.", 
                             site, pGUID)
                 continue
@@ -404,7 +404,7 @@ if __name__ == "__main__":
                 log.info('%s: Processing over, no subjects to notify', site)
 
         except Exception as e:
-            log.exception("%s: Uncaught exception occurred.", site)
+            log.critical("%s: Uncaught exception occurred.", site, exc_info=True)
             continue
 
     log.info('Ended run with invocation: %s', sys.argv)

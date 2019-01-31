@@ -228,7 +228,7 @@ if __name__ == "__main__":
                                         site, pGUID, args.dry_run, battery_alerts, 
                                         any_alerts, e))
         except Exception as e:
-            log.exception("%s: Uncaught exception occurred.", site)
+            log.critical("%s: Uncaught exception occurred.", site, exc_info=True)
             continue
 
     log.info('Ended run with invocation: %s', sys.argv)

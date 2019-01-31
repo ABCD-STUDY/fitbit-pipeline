@@ -177,7 +177,7 @@ if __name__ == "__main__":
                              site, last_id, target_dir)
 
         except Exception as e:
-            log.exception("%s: Uncaught exception occurred.", site)
+            log.critical("%s: Uncaught exception occurred.", site, exc_info=True)
             continue
 
     log.info('Ended run with invocation: %s', sys.argv)
