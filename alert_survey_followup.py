@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Send out alerts about unfilled surveys if the link has been sent more than 
+Send out alerts about unfilled surveys if the link has been sent more than
 three days ago.
 
 It can be run with multiple sites, e.g.:
@@ -16,8 +16,8 @@ import argparse
 import datetime
 import json
 import logging as log
-from notification import (NotificationSubmission, RECIPIENT_PARENT, 
-        STATUS_CREATED, RECIPIENT_CHILD, RECIPIENT_BOTH, DELIVERY_NOW, 
+from notification import (NotificationSubmission, RECIPIENT_PARENT,
+        STATUS_CREATED, RECIPIENT_CHILD, RECIPIENT_BOTH, DELIVERY_NOW,
         DELIVERY_MORNING)
 import os
 import pandas as pd
@@ -28,11 +28,11 @@ from utils import get_redcap_survey_url, apply_redcap_survey_url
 
 
 pd.options.mode.chained_assignment = None
-# If executed from cron, paths are relative to PWD, so anything we need must 
+# If executed from cron, paths are relative to PWD, so anything we need must
 # have an absolute path
 CURRENT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
 log.basicConfig(
-        filename=os.path.join(CURRENT_DIR, "logs", os.path.basename(__file__) + ".log"), 
+        filename=os.path.join(CURRENT_DIR, "logs", os.path.basename(__file__) + ".log"),
         format="%(asctime)s  %(levelname)10s  %(message)s",
         level=log.INFO)
 
@@ -63,79 +63,89 @@ def parse_arguments():
 # 1. Prepare the DataFrame of notifiable subjects: rc_api, site -> to_notify
 #       a. Load the full pool of subjects
 #       b. Cut it down to only notifiable subjects
-#       c. Add columns useful for further processing - *_missing, *_link 
-#       (Wrinkle: some of those columns are needed at the subsetting stage. We 
-#       could say there's a subset-transform-subset cycle, but if there's a 
-#       reason for it to repeat once, why not twice? That might be eschewing 
+#       c. Add columns useful for further processing - *_missing, *_link
+#       (Wrinkle: some of those columns are needed at the subsetting stage. We
+#       could say there's a subset-transform-subset cycle, but if there's a
+#       reason for it to repeat once, why not twice? That might be eschewing
 #       practicality for elegance.)
 # 2. Create notifications for each subject:
 # (to_notify, notif_records, pGUID, site) -> bool uploaded
-#       a. For re-usability, it would be best to dependency-inject the 
+#       a. For re-usability, it would be best to dependency-inject the
 #       message-creation mechanism, but with what API?
-#           - The logic needs to_notify as input; anything else? (Message 
+#           - The logic needs to_notify as input; anything else? (Message
 #           defaults?)
 #           - Output should be eatable by NotificationSubmission.
-#       b. Creating a re-usable structure for abort checks requires injection, 
-#       too: when passed to_notify and NotificationSubmission instance, the 
+#       b. Creating a re-usable structure for abort checks requires injection,
+#       too: when passed to_notify and NotificationSubmission instance, the
 #       class / function can call whatever stop_if_early it wants.
 #
-# In fact, it might make sense to organize each alert as a 
-# NotificationSubmission subclass that overrides particular methods when 
-# needed. For example, the current script might override 
-# NotificationSubmission.upload in order to also push to the main Redcap after 
+# In fact, it might make sense to organize each alert as a
+# NotificationSubmission subclass that overrides particular methods when
+# needed. For example, the current script might override
+# NotificationSubmission.upload in order to also push to the main Redcap after
 # doing the standard thing with super().upload().
 #
-# Similarly, class SiteAction could wrap the standard operations - API 
-# connections, data retrieval, initial subsetting, transform, final subsetting, 
+# Similarly, class SiteAction could wrap the standard operations - API
+# connections, data retrieval, initial subsetting, transform, final subsetting,
 # and row-wise operation of NotificationSubmission (or subclass thereof).
 #
-# At this point, we might be running into the fundamental theorem of software 
-# engineering: "we can solve any problem by introducting an extra level of 
+# At this point, we might be running into the fundamental theorem of software
+# engineering: "we can solve any problem by introducting an extra level of
 # indirection, except for the problem of too many levels of indirection."
-def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False, 
+def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
         only_subjects=None, first_only=False, zero_devices_allowed=False):
     """
-    Given API objects and parameters, create survey-link messages for the 
+    Given API objects and parameters, create survey-link messages for the
     participants who should receive them.
 
     Returns the list of IDs to be alerted.
     """
-    # NOTE: fitc_noti_generated_survey is currently set by the alert-generating 
-    # script, not by the PII, so it must not be regarded as gospel - instead, 
-    # we can offload the work of determining whether a survey notification has 
+    # NOTE: fitc_noti_generated_survey is currently set by the alert-generating
+    # script, not by the PII, so it must not be regarded as gospel - instead,
+    # we can offload the work of determining whether a survey notification has
     # been sent to NotificationSubmission.stop_if_early.
-    rc_fit_datefields = ['fitc_device_dte', 'fitc_noti_generated_survey', 
-            'fitc_noti_generated_sync', 'fitc_noti_generated_bat', 
-            'fitc_last_dte_ra_contact', 'fitc_last_dte_daic_contact'] 
+    rc_fit_datefields = ['fitc_device_dte', 'fitc_noti_generated_survey',
+            'fitc_noti_generated_sync', 'fitc_noti_generated_bat',
+            'fitc_last_dte_ra_contact', 'fitc_last_dte_daic_contact']
     rc_fit_fields = ['fitc_last_status_contact', 'fitc_number_devices',
             # First question on the survey:
-            'fitpo_physical', 'fitpo_physical_p']
+            'fitpo_physical', 'fitpo_physical_p',
+            # Issues and Special Circumstances fields
+            'fitc_withdrawal', 'fitc_extension']
     rc_devices = rc_api.export_records(
             fields=rc_fit_datefields + rc_fit_fields + [rc_api.def_field],
-            events=[REDCAP_EVENT],  
+            events=[REDCAP_EVENT],
             export_data_access_groups=True,
             df_kwargs={
                 'parse_dates': rc_fit_datefields,
                 'index_col': [rc_api.def_field]},
             format='df')
 
-    # Only look at devices that are done collecting within recent past
+    # Only look at devices that are done collecting within recent past, or no
+    # more than 14 days after completion of wearing fitbit. Also makes sure
+    # that participant hasn't withdrawn.
     rc_devices['time_since_start'] = (
             pd.to_datetime('today') - rc_devices['fitc_device_dte'])
+    rc_devices['fitc_extension'].fillna(0, inplace = True)
+    rc_devices['start_survey'] = (
+            [pd.Timedelta(days=22) + pd.Timedelta(days=i) for i in rc_devices['fitc_extension']])
+    rc_devices['end_survey'] = (
+            rc_devices['start_survey'] + pd.Timedelta(days=15))
     rc_devices['done_collecting'] = (
-            (rc_devices['time_since_start'] >= pd.Timedelta(days=22)) &
-            (rc_devices['time_since_start'] < pd.Timedelta(days=200)))
+            (rc_devices['time_since_start'] >= rc_devices['start_survey']) &
+            (rc_devices['time_since_start'] < rc_devices['end_survey']) &
+            (rc_devices['fitc_withdrawal___1'] != 1))
     done_devices = rc_devices.loc[rc_devices['done_collecting']]
     if done_devices.empty:
         log.warn("%s: No devices with finished collection at site.", site)
         return None
     else:
-        log.info("%s: %d devices with finished collection at site.", site, 
+        log.info("%s: %d devices with finished collection at site.", site,
                 done_devices.shape[0])
 
 
-    # Find all participants who are done, but either they or their parents did 
-    # not complete the survey. (NotificationSubmission will decide whether 
+    # Find all participants who are done, but either they or their parents did
+    # not complete the survey. (NotificationSubmission will decide whether
     # they've been sent a notification.)
     youth_missing   = pd.isnull(done_devices['fitpo_physical'])
     parent_missing  = pd.isnull(done_devices['fitpo_physical_p'])
@@ -152,10 +162,10 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
         log.info('%s: No done devices with incomplete follow-up.', site)
         return None
     else:
-        log.info('%s: %d devices with incomplete follow-up.', site, 
+        log.info('%s: %d devices with incomplete follow-up.', site,
                 len(ids_to_notify))
 
-    # If only a subset of participants should be processed, remove them from 
+    # If only a subset of participants should be processed, remove them from
     # the notifiable DataFrame now
     if only_subjects:
         ids_to_notify = [i for i in ids_to_notify if i in only_subjects]
@@ -166,18 +176,18 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
         else:
             to_notify = to_notify.loc[ids_to_notify]
             log.info('%s: Trimmed device list to %d, out of %d IDs '
-                'specified in --subjects', site, len(ids_to_notify), 
+                'specified in --subjects', site, len(ids_to_notify),
                 len(only_subjects))
 
     # For final subset of notifiable participants, retrieve Redcap survey links
-    to_notify['youth_link']  = to_notify.apply(apply_redcap_survey_url, 
+    to_notify['youth_link']  = to_notify.apply(apply_redcap_survey_url,
             axis=1, rc_api=rc_api, survey='fitbit_postassessment_youth')
-    to_notify['parent_link'] = to_notify.apply(apply_redcap_survey_url, 
+    to_notify['parent_link'] = to_notify.apply(apply_redcap_survey_url,
             axis=1, rc_api=rc_api, survey='fitbit_postassessment_parent')
 
     # Get prior notifications generated for this final subset, too
     try:
-        notif_records = notif_api.export_records(records=ids_to_notify, 
+        notif_records = notif_api.export_records(records=ids_to_notify,
                 forms=['notifications'],
                 format='df')
     except pd.errors.EmptyDataError as e:  # All tagged IDs have no priors
@@ -196,7 +206,7 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
 
     notified = []
     for pGUID in ids_to_notify:
-        # Get messages dependent on which surveys are missing, filled in with 
+        # Get messages dependent on which surveys are missing, filled in with
         # links for this pGUID
         messages = get_targeted_messages(
                 youth_missing=to_notify.loc[pGUID, 'youth_missing'],
@@ -207,27 +217,27 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
         # Convert messages to a DataFrame acceptable to NotificationSubmission
         notifications = process_messages(messages, default, record_id=pGUID)
         notifications_df = pd.DataFrame(notifications).set_index('record_id')
-        submission = NotificationSubmission(notif_api, notifications_df, 
+        submission = NotificationSubmission(notif_api, notifications_df,
                 notif_records, dry_run=dry_run)
 
         log.debug('%s, %s: %s', site, pGUID, notifications)
 
-        # Only send the survey if no survey notification has been sent in 
+        # Only send the survey if no survey notification has been sent in
         # the past 3 days
         survey_cutoff = None if first_only else pd.Timedelta(days=3)
-        survey_alerts = submission.stop_if_early(timedelta=survey_cutoff, 
-                check_current_purpose_only=True, 
+        survey_alerts = submission.stop_if_early(timedelta=survey_cutoff,
+                check_current_purpose_only=True,
                 check_created_or_sent_only=True)
 
         # Only send the survey if RA has not reached out in past 2 days
         ra_alerts = submission.stop_if_too_early_after(
-                timedelta=datetime.timedelta(days=2), 
+                timedelta=datetime.timedelta(days=2),
                 reference_time=to_notify.loc[pGUID, 'fitc_last_dte_ra_contact'])
 
-        # Move on to next participants if submission is aborted. (If dry_run is 
+        # Move on to next participants if submission is aborted. (If dry_run is
         # True, then each participant will always be aborted.)
         if submission.is_aborted:
-            log.warning("%s, %s: %d messages would abort. Reason: %s", 
+            log.warning("%s, %s: %d messages would abort. Reason: %s",
                     site, pGUID, len(notifications), submission.abortion_reason)
             continue
         elif first_only and pd.notnull(to_notify.loc[pGUID, 'fitc_noti_generated_survey']):
@@ -239,40 +249,40 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
         if pd.isnull(number_devices) or (number_devices == 0):
             if zero_devices_allowed:
                 log.warning("%s, %s: Generating notification, but no devices "
-                            "associated with account!", 
+                            "associated with account!",
                             site, pGUID)
             else:
                 log.warning("%s, %s: Eligible for notification, but no devices "
-                            "associated with account! Skipping.", 
+                            "associated with account! Skipping.",
                             site, pGUID)
                 continue
         elif number_devices == 1:
             log.warning("%s, %s: Only one device associated with account; "
-                        "info loss possible.", 
+                        "info loss possible.",
                         site, pGUID)
 
 
         # Final step: either pretend-upload or real-upload.
         #
-        # NOTE: On the pretend-upload route, pGUID will always be added to 
-        # "successfully notified" return list. On the actual upload route, 
+        # NOTE: On the pretend-upload route, pGUID will always be added to
+        # "successfully notified" return list. On the actual upload route,
         # pGUID is only considered successful if the upload doesn't fail.
         if dry_run or not force_upload:
             log.warning("%s, %s: %d end-survey notification(s) would be sent if"
-                        " script ran with --force", site, pGUID, 
+                        " script ran with --force", site, pGUID,
                         len(notifications))
             notified.append(pGUID)
         else:
             try:
                 # Write to Notifications Redcap
                 submission.upload(create_redcap_repeating=True)
-                log.info("%s, %s: End-survey notifications (%d versions) " 
+                log.info("%s, %s: End-survey notifications (%d versions) "
                          "uploaded.", site, pGUID, len(notifications))
                 notified.append(pGUID)
 
                 # Write to main Redcap
                 rc_api.import_records(
-                        [{'id_redcap': pGUID, 
+                        [{'id_redcap': pGUID,
                           'redcap_event_name': REDCAP_EVENT,
                           'fitc_noti_generated_survey': timestamp_now_mdy}])
                 log.info("%s, %s: Alert generation timestamp loaded to Redcap.",
@@ -283,7 +293,7 @@ def process_site(rc_api, notif_api, site, dry_run=False, force_upload=False,
                             "Too early after survey notification: %s. "
                             "Too early after last human contact: %s. "
                             "(ValueError: %s)." % (
-                                site, pGUID, dry_run, 
+                                site, pGUID, dry_run,
                                 survey_alerts, ra_alerts, e))
     return notified
 
@@ -299,9 +309,9 @@ def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link
             "Be sure to include the charger. 2) complete a questionnaire")
         messages = {
                 'child_en':  "{}: {}".format(message_base, youth_link),
-                'parent_en': "{}. Parent: {} Youth: {}".format(message_base, 
+                'parent_en': "{}. Parent: {} Youth: {}".format(message_base,
                     parent_link, youth_link),
-                'parent_es': "{}. Parent: {} Youth: {}".format(message_base, 
+                'parent_es': "{}. Parent: {} Youth: {}".format(message_base,
                     parent_link, youth_link),
                 }
     elif youth_missing:
@@ -340,10 +350,10 @@ def get_targeted_messages(youth_missing, parent_missing, youth_link, parent_link
 
 def process_messages(messages, defaults, **kwargs):
     """
-    Given a {RECIPIENT}_{LANG} -> message dict, combine with defaults to create 
+    Given a {RECIPIENT}_{LANG} -> message dict, combine with defaults to create
     a DataFrame-like dict for NotificationSubmission to ingest.
     """
-    # For each message, merge defaults and specifics and appends them to the 
+    # For each message, merge defaults and specifics and appends them to the
     # notifications list
     notifications = []
     for recipient, message in messages.items():
@@ -390,8 +400,8 @@ if __name__ == "__main__":
             rc_token = redcap_tokens.loc[site, 'token']
             rc_api = rc.Project(REDCAP_URL, rc_token)
 
-            notified = process_site(rc_api, notif_api, site, 
-                    dry_run=args.dry_run, force_upload=args.force, 
+            notified = process_site(rc_api, notif_api, site,
+                    dry_run=args.dry_run, force_upload=args.force,
                     only_subjects=args.subjects, first_only=args.first_only,
                     zero_devices_allowed=args.zero_devices_allowed)
 

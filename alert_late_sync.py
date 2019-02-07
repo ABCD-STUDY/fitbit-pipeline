@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-TODO: 
+TODO:
 """
 
 import argparse
@@ -15,11 +15,11 @@ import requests
 import sys
 
 pd.options.mode.chained_assignment = None
-# If executed from cron, paths are relative to PWD, so anything we need must 
+# If executed from cron, paths are relative to PWD, so anything we need must
 # have an absolute path
 CURRENT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
 log.basicConfig(
-        filename=os.path.join(CURRENT_DIR, "logs", os.path.basename(__file__) + ".log"), 
+        filename=os.path.join(CURRENT_DIR, "logs", os.path.basename(__file__) + ".log"),
         format="%(asctime)s  %(levelname)10s  %(message)s",
         level=log.INFO)
 
@@ -59,27 +59,33 @@ if __name__ == "__main__":
             # Get device list from main Redcap project
             rc_token = redcap_tokens.loc[site, 'token']
             rc_api = rc.Project(REDCAP_URL, rc_token)
-            rc_fit_datefields = ['fitc_device_dte', 'fitc_last_sync_date'] 
-            rc_fit_fields = ['fitc_last_battery_level', 'fitc_fitabase_exists', 
-                    'fitc_fitabase_profile_id', 'fitc_number_devices']
+            rc_fit_datefields = ['fitc_device_dte', 'fitc_last_sync_date']
+            rc_fit_fields = ['fitc_last_battery_level', 'fitc_fitabase_exists',
+                    'fitc_fitabase_profile_id', 'fitc_number_devices',
+                    'fitc_withdrawal', 'fitc_extension']
             rc_devices = rc_api.export_records(
                     fields=rc_fit_datefields + rc_fit_fields + [rc_api.def_field],
-                    events=[REDCAP_EVENT],  
+                    events=[REDCAP_EVENT],
                     export_data_access_groups=True,
                     df_kwargs={
                         'parse_dates': rc_fit_datefields,
                         'index_col': [rc_api.def_field]},
                     format='df')
-            # Subset to only devices that are on Fitabase and currently in the data 
+            # Subset to only devices that are on Fitabase and currently in the data
             # collection period
             #
-            # FIXME: Should also check that this is a positive Timedelta, in case 
-            # someone's fitc_device_dte is set in the future? Although then the 
+            # FIXME: Should also check that this is a positive Timedelta, in case
+            # someone's fitc_device_dte is set in the future? Although then the
             # device will probably not be active / won't have sync data, so...
+            rc_devices['fitc_extension'].fillna(0, inplace = True)
+            rc_devices['end_collect'] = (
+                [pd.Timedelta(days=23) + pd.Timedelta(days=i) for i in rc_devices['fitc_extension']]
+            )
             rc_devices['now_collecting'] = (
-                    (pd.to_datetime('today') - rc_devices['fitc_device_dte']) 
-                    < pd.Timedelta(days=23))
-            active_devices = (rc_devices.loc[rc_devices['fitc_fitabase_exists'].astype(bool) & 
+                    ((pd.to_datetime('today') - rc_devices['fitc_device_dte'])
+                    < rc_devices['end_collect']) &
+                    (rc_devices['fitc_withdrawal___1'] != 1))
+            active_devices = (rc_devices.loc[rc_devices['fitc_fitabase_exists'].astype(bool) &
                                              rc_devices['now_collecting']])
             if active_devices.empty:
                 log.warn("%s: No active devices at site.", site)
@@ -97,10 +103,10 @@ if __name__ == "__main__":
             if devices_to_notify.empty:
                 continue
 
-            # Now, we need to create three versions of the notification; the 
+            # Now, we need to create three versions of the notification; the
             # external system decides which ones to send.
-            # 
-            # Here, we'll first create the shared attributes of the message, then 
+            #
+            # Here, we'll first create the shared attributes of the message, then
             # infer the specifics based on the dict key in messages:
             messages = {
                     'parent_en': "%YOUTH_FIRST_NAME%: Please sync your fitbit for ABCD! Our records show that you did this more than {days} days ago. Do this every day so we don't lose your data. Do not reply to this message. Contact your site directly if you have questions.",
@@ -116,23 +122,23 @@ if __name__ == "__main__":
                     # 'noti_recipient': 1,
                     'noti_send_preferred_time': 0}  # 0: immediate, 1: daily
 
-            # Setup: connect to the Notifications Redcap and retrieve past 
+            # Setup: connect to the Notifications Redcap and retrieve past
             # notifications for tagged participants
             ids_to_notify = devices_to_notify.index.get_level_values('id_redcap').tolist()
 
             try:
-                notif_records = notif_api.export_records(records=ids_to_notify, 
+                notif_records = notif_api.export_records(records=ids_to_notify,
                         forms=['notifications'],
                         format='df')
             except pd.errors.EmptyDataError as e:  # All tagged IDs have no priors
                 notif_records = pd.DataFrame()
 
 
-            # For each participant, process and upload the notifications we'd 
+            # For each participant, process and upload the notifications we'd
             # created
             for pGUID in ids_to_notify:
                 notifications = []
-                # For each message, merge defaults and specifics and appends them 
+                # For each message, merge defaults and specifics and appends them
                 # to the notifications list
                 for recipient, message in messages.items():
                     specifics = {
@@ -145,31 +151,31 @@ if __name__ == "__main__":
 
                 log.debug('%s, %s: %s', site, pGUID, notifications)
                 # NotificationSubmission provides three things:
-                # 
+                #
                 # 1. Processing logic (adding redcap_repeat_instrument, etc.)
-                # 2. History-dependent stopping logic (given the previously sent 
+                # 2. History-dependent stopping logic (given the previously sent
                 # alerts, should another one go out this early?)
                 # 3. Upload logic.
                 #
-                # First, we wrap the bundle of messages in a single 
-                # NotificationSubmission. (To work with NotificationSubmission, 
+                # First, we wrap the bundle of messages in a single
+                # NotificationSubmission. (To work with NotificationSubmission,
                 # input must be an indexed DataFrame.)
                 notifications_df = pd.DataFrame(notifications).set_index('record_id')
-                submission = NotificationSubmission(notif_api, notifications_df, 
+                submission = NotificationSubmission(notif_api, notifications_df,
                         notif_records, dry_run=args.dry_run)
                 # Now, we execute two checks:
-                # 1. Check that participant has not received any alerts *of any 
+                # 1. Check that participant has not received any alerts *of any
                 # kind* in the past two days
-                any_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=1), 
+                any_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=1),
                         check_current_purpose_only=False)
-                # 2. Check that participant has not received a "charge your Fitbit" 
-                # alert in the past week. Note that this check makes this script 
+                # 2. Check that participant has not received a "charge your Fitbit"
+                # alert in the past week. Note that this check makes this script
                 # idempotent - if you re-run it, it will not recreate the alerts.
-                specific_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=3), 
+                specific_alerts = submission.stop_if_early(timedelta=pd.Timedelta(days=3),
                         check_current_purpose_only=True)
 
-                # Without --force, no uploads will be done. With --dry-run, upload 
-                # will be attempted, but it will fail (as NotificationSubmission 
+                # Without --force, no uploads will be done. With --dry-run, upload
+                # will be attempted, but it will fail (as NotificationSubmission
                 # takes a dry_run argument that triggers its stopping logic).
                 if not args.force:
                     log.warning("%s, %s: To try to upload late sync notification,"
@@ -177,7 +183,7 @@ if __name__ == "__main__":
                 else:
                     try:
                         submission.upload(create_redcap_repeating=True)
-                        log.info("%s, %s: Late sync notifications (%d versions) " 
+                        log.info("%s, %s: Late sync notifications (%d versions) "
                                  "uploaded.", site, pGUID, len(notifications))
                     except ValueError as e:
                         log.warning("%s, %s: Abort condition triggered. Why? "
@@ -185,7 +191,7 @@ if __name__ == "__main__":
                                     "Too early after late sync alert: %s. "
                                     "Too early after any alert: %s; "
                                     "(ValueError: %s)." % (
-                                        site, pGUID, args.dry_run, specific_alerts, 
+                                        site, pGUID, args.dry_run, specific_alerts,
                                         any_alerts, e))
 
         except Exception as e:
